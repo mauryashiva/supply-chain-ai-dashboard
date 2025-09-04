@@ -1,5 +1,3 @@
-// client/src/types/index.ts
-
 // Status types for badges
 export type OrderStatus = "Delivered" | "Shipped" | "Pending" | "Cancelled";
 export type ProductStatus = "In Stock" | "Low Stock" | "Out of Stock";
@@ -36,7 +34,6 @@ export interface Product {
   sku: string;
   stock_quantity: number;
   status: ProductStatus;
-  // UPDATE: Humne image_url ko add kiya hai jo aapke model mein hai
   image_url?: string;
 }
 
@@ -45,7 +42,6 @@ export interface ProductCreate {
   sku: string;
   stock_quantity: number;
   status: ProductStatus;
-  // UPDATE: Humne image_url ko add kiya hai jo aapke model mein hai
   image_url?: string;
 }
 
@@ -63,7 +59,6 @@ export interface Order {
   order_date: string;
   status: OrderStatus;
   amount: number;
-  // UPDATE: Humne 'shipping_address' add kiya hai taaki data consistent rahe
   shipping_address: string;
 }
 
@@ -74,9 +69,6 @@ export interface OrderCreate {
   status: OrderStatus;
 }
 
-// UPDATE: Humne 'OrderUpdate' ko aur bhi flexible bana diya hai
-// 'Partial' ka matlab hai ki saari fields optional hain.
-// Isse hum status ke alawa future mein kuch aur bhi update kar payenge.
 export type OrderUpdate = Partial<OrderCreate>;
 
 export interface Vehicle {
@@ -87,14 +79,33 @@ export interface Vehicle {
   orders_count: number;
   live_temp: number;
   fuel_level: number;
-  // UPDATE: latitude aur longitude ko add kiya
   latitude: number;
   longitude: number;
 }
 
-export interface DashboardSummary {
-  total_orders: number;
-  total_revenue: number;
-  on_time_deliveries: number;
-  pending_orders: number;
+// UPDATE: Humne DashboardSummary ko hata kar AnalyticsSummary ke andar daal diya hai
+// taaki saara data ek hi jagah se aaye.
+
+// UPDATE: Yeh naye types Analytics page ke charts ke liye hain.
+export interface KpiCard {
+  title: string;
+  value: string;
+  change: string;
+}
+
+export interface TopProduct {
+  name: string;
+  value: number;
+}
+
+export interface DeliveryStatusChart {
+  on_time: number;
+  delayed: number;
+}
+
+// UPDATE: Yeh naya, detailed type Analytics aur Dashboard, dono pages use karenge.
+export interface AnalyticsSummary {
+  kpi_cards: KpiCard[];
+  top_selling_products: TopProduct[];
+  delivery_status: DeliveryStatusChart;
 }
