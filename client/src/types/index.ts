@@ -1,3 +1,5 @@
+// client/src/types/index.ts
+
 // Status types for badges
 export type OrderStatus = "Delivered" | "Shipped" | "Pending" | "Cancelled";
 export type ProductStatus = "In Stock" | "Low Stock" | "Out of Stock";
@@ -34,6 +36,8 @@ export interface Product {
   sku: string;
   stock_quantity: number;
   status: ProductStatus;
+  // UPDATE: Humne image_url ko add kiya hai jo aapke model mein hai
+  image_url?: string;
 }
 
 export interface ProductCreate {
@@ -41,6 +45,8 @@ export interface ProductCreate {
   sku: string;
   stock_quantity: number;
   status: ProductStatus;
+  // UPDATE: Humne image_url ko add kiya hai jo aapke model mein hai
+  image_url?: string;
 }
 
 export interface ProductUpdate {
@@ -48,6 +54,7 @@ export interface ProductUpdate {
   sku?: string;
   stock_quantity?: number;
   status?: ProductStatus;
+  image_url?: string;
 }
 
 export interface Order {
@@ -56,9 +63,10 @@ export interface Order {
   order_date: string;
   status: OrderStatus;
   amount: number;
+  // UPDATE: Humne 'shipping_address' add kiya hai taaki data consistent rahe
+  shipping_address: string;
 }
 
-// UPDATE: Yeh naya type hum "Add New Order" form ke liye istemal karenge.
 export interface OrderCreate {
   customer_name: string;
   amount: number;
@@ -66,10 +74,10 @@ export interface OrderCreate {
   status: OrderStatus;
 }
 
-// UPDATE: Yeh naya type hum "Update Order Status" dropdown ke liye istemal karenge.
-export interface OrderUpdate {
-  status?: OrderStatus;
-}
+// UPDATE: Humne 'OrderUpdate' ko aur bhi flexible bana diya hai
+// 'Partial' ka matlab hai ki saari fields optional hain.
+// Isse hum status ke alawa future mein kuch aur bhi update kar payenge.
+export type OrderUpdate = Partial<OrderCreate>;
 
 export interface Vehicle {
   id: number;
@@ -79,6 +87,9 @@ export interface Vehicle {
   orders_count: number;
   live_temp: number;
   fuel_level: number;
+  // UPDATE: latitude aur longitude ko add kiya
+  latitude: number;
+  longitude: number;
 }
 
 export interface DashboardSummary {

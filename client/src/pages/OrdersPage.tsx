@@ -1,16 +1,17 @@
+// client/src/pages/OrdersPage.tsx
+
 import React, { useEffect, useState, type FormEvent } from "react";
-// UPDATE: Humne .ts extension wapas add kar diya hai taaki Vite isey sahi se dhoondh sake
 import {
   getOrders,
   createOrder,
   updateOrder,
   deleteOrder,
-} from "@/services/api.ts";
-import { Search, PlusCircle, X, Trash2 } from "lucide-react";
+} from "@/services/api";
+import { Search, PlusCircle, X, Trash2, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Order, OrderStatus, OrderCreate } from "@/types";
 
-// --- ADD ORDER MODAL COMPONENT ---
+// --- ADD ORDER MODAL COMPONENT (UPDATED FOR BETTER UX) ---
 interface AddOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,23 +23,23 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({
   onClose,
   onOrderAdded,
 }) => {
-  const [formData, setFormData] = useState<OrderCreate>({
+  // UPDATE: Humne amount ko shuruaat mein empty string ('') kar diya hai
+  const [formData, setFormData] = useState({
     customer_name: "",
-    amount: 0,
+    amount: "" as number | string, // amount ab string bhi ho sakta hai
     shipping_address: "",
-    status: "Pending",
+    status: "Pending" as OrderStatus,
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // UPDATE: Humne handleChange ko simple kar diya hai.
+  // Yeh ab amount ko string ki tarah hi save karega, jisse user use mita sakta hai.
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: name === "amount" ? parseFloat(value) || 0 : value,
-    });
+    setFormData({ ...formData, [name]: value });
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -46,12 +47,19 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await createOrder(formData);
+      // UPDATE: Bhejne se pehle, hum amount ko dobara number mein badal denge.
+      const payload: OrderCreate = {
+        ...formData,
+        amount: parseFloat(String(formData.amount)) || 0,
+      };
+
+      const response = await createOrder(payload);
       onOrderAdded(response.data);
       onClose();
+      // UPDATE: Form reset karte waqt bhi amount ko empty string rakhein
       setFormData({
         customer_name: "",
-        amount: 0,
+        amount: "",
         shipping_address: "",
         status: "Pending",
       });
@@ -101,6 +109,7 @@ const AddOrderModal: React.FC<AddOrderModalProps> = ({
               value={formData.amount}
               onChange={handleChange}
               required
+              placeholder="e.g., 199.99"
               min="0"
               step="0.01"
               className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500"
@@ -178,12 +187,13 @@ const StatusBadge = ({ status }: { status: OrderStatus }) => {
   );
 };
 
-// --- MAIN ORDERS PAGE COMPONENT (UPDATED) ---
+// --- MAIN ORDERS PAGE COMPONENT ---
 const OrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -205,16 +215,14 @@ const OrdersPage: React.FC = () => {
       order.id.toString().includes(searchTerm)
   );
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
     }).format(amount);
-  };
 
-  const handleOrderAdded = (newOrder: Order) => {
+  const handleOrderAdded = (newOrder: Order) =>
     setOrders([newOrder, ...orders]);
-  };
 
   const handleStatusChange = async (
     orderId: number,
@@ -223,6 +231,7 @@ const OrdersPage: React.FC = () => {
     try {
       const response = await updateOrder(orderId, { status: newStatus });
       setOrders(orders.map((o) => (o.id === orderId ? response.data : o)));
+      setEditingOrderId(null);
     } catch (error) {
       console.error("Failed to update order status:", error);
       alert("Could not update order status. Please try again.");
@@ -248,7 +257,6 @@ const OrdersPage: React.FC = () => {
         onClose={() => setIsAddModalOpen(false)}
         onOrderAdded={handleOrderAdded}
       />
-
       <div className="bg-zinc-900 rounded-lg shadow-lg p-6">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
           <div>
@@ -265,7 +273,6 @@ const OrdersPage: React.FC = () => {
             <span>Add New Order</span>
           </button>
         </div>
-
         <div className="mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
@@ -278,7 +285,6 @@ const OrdersPage: React.FC = () => {
             />
           </div>
         </div>
-
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-zinc-800">
             <thead className="bg-zinc-800/50">
@@ -335,24 +341,36 @@ const OrdersPage: React.FC = () => {
                       {formatCurrency(order.amount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <StatusBadge status={order.status} />
-                      <select
-                        value={order.status}
-                        onChange={(e) =>
-                          handleStatusChange(
-                            order.id,
-                            e.target.value as OrderStatus
-                          )
-                        }
-                        className="bg-zinc-800 border-zinc-700 text-zinc-300 rounded-md p-1 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500 mt-2"
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="Shipped">Shipped</option>
-                        <option value="Delivered">Delivered</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
+                      {editingOrderId === order.id ? (
+                        <select
+                          value={order.status}
+                          onChange={(e) =>
+                            handleStatusChange(
+                              order.id,
+                              e.target.value as OrderStatus
+                            )
+                          }
+                          onBlur={() => setEditingOrderId(null)}
+                          autoFocus
+                          className="bg-zinc-800 border-zinc-700 text-zinc-300 rounded-md p-1 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Shipped">Shipped</option>
+                          <option value="Delivered">Delivered</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      ) : (
+                        <StatusBadge status={order.status} />
+                      )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                      <button
+                        onClick={() => setEditingOrderId(order.id)}
+                        className="text-blue-400 hover:text-blue-300 transition-colors"
+                        title="Edit Status"
+                      >
+                        <Edit size={16} />
+                      </button>
                       <button
                         onClick={() => handleOrderDeleted(order.id)}
                         className="text-red-500 hover:text-red-400 transition-colors"
