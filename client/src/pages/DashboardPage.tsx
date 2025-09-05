@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { DollarSign, Package, Timer, Truck } from "lucide-react";
-import type { DashboardSummary } from "@/types";
+import type { AnalyticsSummary, KpiCard } from "@/types"; // <-- FIX: Using AnalyticsSummary
 
 interface KPICardProps {
   title: string;
@@ -36,6 +36,14 @@ const KPICard: React.FC<KPICardProps> = ({
   </div>
 );
 
+// FIX: Map card titles to icons
+const iconMap: { [key: string]: React.ElementType } = {
+  "Total Orders": Package,
+  Revenue: DollarSign,
+  "On-Time Deliveries": Timer,
+  "Pending Orders": Truck,
+};
+
 const chartData = [
   { name: "Jan", revenue: 4000 },
   { name: "Feb", revenue: 3000 },
@@ -46,7 +54,7 @@ const chartData = [
 ];
 
 const DashboardPage: React.FC = () => {
-  const [summaryData, setSummaryData] = useState<DashboardSummary | null>(null);
+  const [summaryData, setSummaryData] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -63,17 +71,12 @@ const DashboardPage: React.FC = () => {
     fetchSummary();
   }, []);
 
-  const formatRevenue = (value: number) => {
-    return `$${(value / 1000).toFixed(1)}k`;
-  };
-
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-3xl font-bold text-white">Dashboard Overview</h1>
 
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* UPDATE: Loading state ke liye placeholder cards dikhayeinge */}
           {Array(4)
             .fill(0)
             .map((_, index) => (
@@ -88,33 +91,17 @@ const DashboardPage: React.FC = () => {
             ))}
         </div>
       ) : summaryData ? (
+        // FIX: Dynamically render cards from API data
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* UPDATE: Humne Optional Chaining (?.) aur Nullish Coalescing (??) ka istemal kiya hai */}
-          {/* Isse agar data undefined ho, to app crash nahi hoga aur default value '0' dikhegi. */}
-          <KPICard
-            title="Total Revenue"
-            value={formatRevenue(summaryData?.total_revenue ?? 0)}
-            icon={DollarSign}
-            change="+2.5% from last month"
-          />
-          <KPICard
-            title="Total Orders"
-            value={summaryData?.total_orders?.toString() ?? "0"}
-            icon={Package}
-            change="+5.1% from last month"
-          />
-          <KPICard
-            title="On-Time Deliveries"
-            value={`${summaryData?.on_time_deliveries ?? 0}%`}
-            icon={Timer}
-            change="+1.2% from last month"
-          />
-          <KPICard
-            title="Pending Orders"
-            value={summaryData?.pending_orders?.toString() ?? "0"}
-            icon={Truck}
-            change="-0.5% from last week"
-          />
+          {summaryData.kpi_cards.map((card: KpiCard) => (
+            <KPICard
+              key={card.title}
+              title={card.title}
+              value={card.value}
+              change={card.change}
+              icon={iconMap[card.title] || DollarSign}
+            />
+          ))}
         </div>
       ) : (
         <p className="text-red-400">Could not load dashboard data.</p>

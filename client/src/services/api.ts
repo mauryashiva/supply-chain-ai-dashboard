@@ -1,7 +1,6 @@
 import axios from "axios";
-// UPDATE: Humne order create/update ke liye zaroori types import kiye hain
 import type {
-  DashboardSummary,
+  AnalyticsSummary, // <-- FIX: Changed from DashboardSummary
   Order,
   Product,
   User,
@@ -14,11 +13,9 @@ import type {
   OrderUpdate,
 } from "@/types";
 
-// .env se sirf base URL (http://127.0.0.1:8000) aayega
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 const apiClient = axios.create({
-  // "/api" ko yahaan centrally add kiya gaya hai.
   baseURL: `${API_URL}/api`,
   headers: {
     "Content-Type": "application/json",
@@ -27,7 +24,7 @@ const apiClient = axios.create({
 
 // -- Data Fetching Functions --
 export const getDashboardSummary = () =>
-  apiClient.get<DashboardSummary>("/analytics/summary");
+  apiClient.get<AnalyticsSummary>("/analytics/summary"); // <-- FIX: Changed from DashboardSummary
 
 export const getProducts = () =>
   apiClient.get<Product[]>("/inventory/products");
@@ -46,7 +43,6 @@ export const createUser = (userData: UserCreate) =>
 export const createProduct = (productData: ProductCreate) =>
   apiClient.post<Product>("/inventory/products", productData);
 
-// --- UPDATE: Naya Order Create Karne ka Function ---
 export const createOrder = (orderData: OrderCreate) =>
   apiClient.post<Order>("/orders/", orderData);
 
@@ -63,7 +59,6 @@ export const updateUser = (userId: number, userData: UserUpdate) =>
 export const deleteUser = (userId: number) =>
   apiClient.delete(`/users/${userId}`);
 
-// --- UPDATE: Order Update aur Delete Karne ke Functions ---
 export const updateOrder = (orderId: number, orderData: OrderUpdate) =>
   apiClient.put<Order>(`/orders/${orderId}`, orderData);
 
