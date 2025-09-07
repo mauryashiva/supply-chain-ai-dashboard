@@ -6,7 +6,14 @@ import {
   updateProduct,
   deleteProduct,
 } from "@/services/api.ts";
-import { PlusCircle, Search, X, Pencil, Trash2 } from "lucide-react";
+import {
+  PlusCircle,
+  Search,
+  X,
+  Pencil,
+  Trash2,
+  AlertTriangle, // Naya icon import kiya gaya
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   Product,
@@ -304,6 +311,57 @@ const EditItemModal: React.FC<EditItemModalProps> = ({
   );
 };
 
+// --- [NEW] Confirmation Modal Component ---
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  loading: boolean;
+}
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  loading,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
+      <div className="bg-zinc-900 rounded-lg shadow-xl p-6 w-full max-w-sm relative border border-zinc-700 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 mb-4">
+          <AlertTriangle className="h-6 w-6 text-red-500" aria-hidden="true" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">{title}</h2>
+        <p className="text-zinc-400 mb-6">{message}</p>
+        <div className="flex justify-center gap-4">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="w-full bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "Deleting..." : "Delete Item"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StockStatusBadge: React.FC<{ status: ProductStatus }> = ({ status }) => {
   const statusMap: Record<ProductStatus, string> = {
     "In Stock": "bg-green-500/10 text-green-400 border border-green-500/20",
@@ -330,6 +388,11 @@ const InventoryPage: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // --- [NEW] State for confirmation modal ---
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -366,14 +429,27 @@ const InventoryPage: React.FC = () => {
     );
   };
 
-  const handleProductDeleted = async (productId: number) => {
-    // UPDATE: Humne 'window.confirm' ko hata diya hai
+  // --- [NEW] Step 1: Open confirmation modal ---
+  const handleDeleteClick = (product: Product) => {
+    setProductToDelete(product);
+    setIsConfirmModalOpen(true);
+  };
+
+  // --- [NEW] Step 2: Handle the actual deletion after confirmation ---
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+
+    setIsDeleting(true);
     try {
-      await deleteProduct(productId);
-      setProducts(products.filter((p) => p.id !== productId));
+      await deleteProduct(productToDelete.id);
+      setProducts(products.filter((p) => p.id !== productToDelete.id));
+      setIsConfirmModalOpen(false);
+      setProductToDelete(null);
     } catch (error) {
       console.error("Failed to delete product:", error);
-      // UPDATE: Humne 'alert' ko hata diya hai
+      alert("Could not delete the product. Please try again.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -389,6 +465,15 @@ const InventoryPage: React.FC = () => {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onProductUpdated={handleProductUpdated}
+      />
+      {/* --- [NEW] Render the Confirmation Modal --- */}
+      <ConfirmationModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Confirm Item Deletion"
+        message={`Are you sure you want to permanently delete "${productToDelete?.name}"? This will remove it from your inventory.`}
+        loading={isDeleting}
       />
 
       <div className="bg-zinc-900 rounded-lg shadow-lg p-6">
@@ -485,7 +570,8 @@ const InventoryPage: React.FC = () => {
                           <Pencil size={16} />
                         </button>
                         <button
-                          onClick={() => handleProductDeleted(product.id)}
+                          // --- [UPDATED] OnClick ab naye function ko call karta hai ---
+                          onClick={() => handleDeleteClick(product)}
                           className="text-red-500 hover:text-red-400 transition-colors"
                           title="Delete Product"
                         >
