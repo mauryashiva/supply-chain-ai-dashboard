@@ -1,5 +1,4 @@
 import React, { useState, type FormEvent } from "react";
-// REMOVED: The 'X' icon is no longer needed in this component's import.
 import { PackagePlus, Trash2 } from "lucide-react";
 import type {
   Order,
@@ -12,7 +11,6 @@ import type {
 } from "@/types";
 import { createOrder } from "@/services/api";
 import { AddProductModal } from "./AddProductModal";
-// ADDED: Importing the new reusable ModalLayout component.
 import { ModalLayout } from "@/layouts/ModalLayout";
 
 interface AddOrderModalProps {
@@ -30,7 +28,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   products,
   onProductAdded,
 }) => {
-  // All state and logic functions remain exactly the same. No changes here.
   const [formState, setFormState] = useState({
     customer_name: "",
     customer_email: "",
@@ -146,11 +143,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }
   };
 
-  // CHANGED: The old 'if (!isOpen) return null;' is removed.
-  // The JSX now returns a fragment containing both modals.
   return (
     <>
-      {/* The AddProductModal is kept separate as it's a modal on top of another modal. */}
       <AddProductModal
         isOpen={isAddProductOpen}
         onClose={() => setIsAddProductOpen(false)}
@@ -158,14 +152,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
         setSelectedProductId={setSelectedProductId}
       />
 
-      {/* The main modal's JSX is now wrapped in the ModalLayout component. */}
       <ModalLayout
         isOpen={isOpen}
         onClose={onClose}
         title="Add New Order"
         size="max-w-3xl"
       >
-        {/* The form is now passed as 'children' to the ModalLayout. */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <fieldset className="border border-zinc-700 p-4 rounded-lg">
             <legend className="px-2 text-sm text-zinc-400">
@@ -230,8 +222,16 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 />
                 <datalist id="products-list">
                   {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
+                    <option
+                      key={p.id}
+                      value={p.id}
+                      disabled={p.stock_quantity === 0}
+                    >
+                      {p.name} -{" "}
+                      {p.stock_quantity > 0
+                        ? `${p.stock_quantity} units`
+                        : "OUT OF STOCK"}{" "}
+                      ({p.status})
                     </option>
                   ))}
                 </datalist>
