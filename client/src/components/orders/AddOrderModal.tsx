@@ -1,4 +1,4 @@
-import React, { useState, type FormEvent } from "react";
+import React, { useState, useMemo, type FormEvent } from "react";
 import { PackagePlus, Trash2 } from "lucide-react";
 import type {
   Order,
@@ -48,6 +48,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   const [itemQuantity, setItemQuantity] = useState<number>(1);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
 
+  // FEATURE 1: DROPDOWN KO FILTER KARNE KI LOGIC
+  const availableProducts = useMemo(() => {
+    const addedProductIds = formState.items.map((item) => item.product_id);
+    return products.filter((p) => !addedProductIds.includes(p.id));
+  }, [products, formState.items]);
+
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -93,6 +99,34 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     setSelectedProductId("");
     setItemQuantity(1);
     setError(null);
+  };
+
+  // FEATURE 2: QUANTITY EDIT KARNE KE LIYE NAYA FUNCTION
+  const handleQuantityChange = (productId: number, newQuantity: number) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+
+    if (newQuantity > product.stock_quantity) {
+      setError(
+        `Only ${product.stock_quantity} units of ${product.name} are available.`
+      );
+      newQuantity = product.stock_quantity;
+    } else {
+      setError(null);
+    }
+
+    if (newQuantity < 1) {
+      newQuantity = 1;
+    }
+
+    setFormState((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        item.product_id === productId
+          ? { ...item, quantity: newQuantity }
+          : item
+      ),
+    }));
   };
 
   const handleRemoveItem = (productIdToRemove: number) => {
@@ -221,7 +255,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                   className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
                 />
                 <datalist id="products-list">
-                  {products.map((p) => (
+                  {availableProducts.map((p) => (
                     <option
                       key={p.id}
                       value={p.id}
@@ -278,8 +312,20 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       className="flex justify-between items-center bg-zinc-800 p-2 rounded-md text-sm"
                     >
                       <span>{product?.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono">Qty: {item.quantity}</span>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            handleQuantityChange(
+                              item.product_id,
+                              parseInt(e.target.value) || 1
+                            )
+                          }
+                          className="w-20 bg-zinc-700 border-zinc-600 rounded-md p-1 text-center font-mono"
+                          min="1"
+                          max={product?.stock_quantity}
+                        />
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(item.product_id)}

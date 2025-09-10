@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import type { Product, ProductCreate } from "@/types";
+import type { Product, ProductCreate, ProductStatus } from "@/types";
 import { createProduct } from "@/services/api";
 
 interface AddProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onProductAdded: (newProduct: Product) => void;
-  // Parent component se state setter function pass kar rahe hain
   setSelectedProductId: (id: string) => void;
 }
 
@@ -17,13 +16,19 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   setSelectedProductId,
 }) => {
   const [newProductSku, setNewProductSku] = useState("");
-  const [newProductStatus, setNewProductStatus] = useState<
-    "In Stock" | "Low Stock" | "Out of Stock"
-  >("In Stock");
+  const [newProductStock, setNewProductStock] = useState<number>(10);
   const [productLoading, setProductLoading] = useState(false);
 
+  const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value, 10);
+    if (isNaN(value) || value < 0) {
+      setNewProductStock(0);
+      return;
+    }
+    setNewProductStock(value);
+  };
+
   const handleCreateProduct = async () => {
-    // Logic ko bilkul same rakha gaya hai
     const nameInput = document.querySelector(
       'input[name="product"]'
     ) as HTMLInputElement;
@@ -35,25 +40,40 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     }
     setProductLoading(true);
 
+    // --- FIX: Status ko space ke saath bhejein, underscore ke saath nahi ---
+    let status: ProductStatus = "In Stock"; // Changed from In_Stock
+    const LOW_STOCK_THRESHOLD = 10;
+    if (newProductStock <= 0) {
+      status = "Out of Stock"; // Changed from Out_of_Stock
+    } else if (newProductStock <= LOW_STOCK_THRESHOLD) {
+      status = "Low Stock"; // Changed from Low_Stock
+    }
+
     const payload: ProductCreate = {
       name: typedProductName,
       sku: newProductSku,
-      stock_quantity: 0,
-      status: newProductStatus,
+      stock_quantity: newProductStock,
+      status: status,
     };
 
     try {
       const response = await createProduct(payload);
       const newProduct = response.data;
-      onProductAdded(newProduct); // OrdersPage ki state update karein
-      setSelectedProductId(String(newProduct.id)); // Naye product ko auto-select karein
-      onClose(); // Modal band karein
+      onProductAdded(newProduct);
+      setSelectedProductId(String(newProduct.id));
+      onClose();
       alert(`Product "${newProduct.name}" created successfully!`);
     } catch (err: any) {
-      alert(
-        "Failed to create product: " +
-          (err.response?.data?.detail || "Unknown error")
-      );
+      let errorMessage = "Failed to create product. Please try again.";
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === "string") {
+          errorMessage = err.response.data.detail;
+        } else if (Array.isArray(err.response.data.detail)) {
+          const firstError = err.response.data.detail[0];
+          errorMessage = `Error in '${firstError.loc[1]}': ${firstError.msg}`;
+        }
+      }
+      alert(errorMessage);
     } finally {
       setProductLoading(false);
     }
@@ -91,17 +111,19 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
               className="w-full bg-zinc-700 border-zinc-600 rounded-lg px-3 py-2 mt-1"
             />
           </div>
+
           <div>
-            <label className="text-xs text-zinc-400">Initial Status</label>
-            <select
-              value={newProductStatus}
-              onChange={(e) => setNewProductStatus(e.target.value as any)}
+            <label className="text-xs text-zinc-400">
+              Initial Stock Quantity *
+            </label>
+            <input
+              type="number"
+              placeholder="e.g., 10"
+              value={newProductStock}
+              onChange={handleStockChange}
+              min="0"
               className="w-full bg-zinc-700 border-zinc-600 rounded-lg px-3 py-2 mt-1"
-            >
-              <option>In Stock</option>
-              <option>Low Stock</option>
-              <option>Out of Stock</option>
-            </select>
+            />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
