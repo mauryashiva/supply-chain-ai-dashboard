@@ -14,7 +14,10 @@ import {
 import type { Product } from "@/types";
 import { StockStatusBadge } from "./InventoryComponents";
 
-// Component ke liye Props ka interface
+// --- CHANGE 1: Carousel ki library aur CSS import karein ---
+import { Carousel } from "react-responsive-carousel";
+import "react-responsive-carousel/lib/styles/carousel.min.css"; // iski styling ke liye zaroori
+
 interface ProductDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -65,22 +68,49 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
       <div className="bg-zinc-900 rounded-lg shadow-xl p-6 w-full max-w-2xl relative border border-zinc-700">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-white"
+          className="absolute top-4 right-4 text-zinc-500 hover:text-white z-10"
         >
           <X size={20} />
         </button>
 
-        <div className="flex items-start gap-4">
-          {product.image_url && (
-            <div className="w-1/3">
-              <img
-                src={product.image_url}
-                alt={product.name}
-                className="rounded-lg object-cover w-full h-auto aspect-square"
-              />
+        <div className="flex flex-col md:flex-row items-start gap-6">
+          {/* --- CHANGE 2: Single image ki jagah Carousel component --- */}
+          {product.images && product.images.length > 0 && (
+            <div className="w-full md:w-1/3">
+              <Carousel
+                showThumbs={false}
+                showStatus={false}
+                infiniteLoop={true}
+                className="rounded-lg overflow-hidden"
+              >
+                {product.images.map((media) => (
+                  <div key={media.id} className="aspect-square bg-black">
+                    {media.media_type === "image" ? (
+                      <img
+                        src={media.media_url}
+                        alt={product.name}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <video
+                        src={media.media_url}
+                        controls
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+                  </div>
+                ))}
+              </Carousel>
             </div>
           )}
-          <div className={product.image_url ? "w-2/3" : "w-full"}>
+
+          <div
+            className={
+              product.images && product.images.length > 0
+                ? "w-full md:w-2/3"
+                : "w-full"
+            }
+          >
             <h2 className="text-xl font-bold text-white mb-1">
               {product.name}
             </h2>

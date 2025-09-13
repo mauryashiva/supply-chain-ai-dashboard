@@ -1,4 +1,4 @@
-// --- Type Aliases (Matching Final Blueprint) ---
+// --- Type Aliases ---
 
 export type OrderStatus =
   | "Pending"
@@ -25,7 +25,17 @@ export type ProductStatus = "In Stock" | "Low Stock" | "Out of Stock";
 export type VehicleStatus = "On Route" | "Idle" | "In-Shop";
 export type UserRole = "admin" | "user";
 
+// --- NAYA TYPE: Image aur video mein fark karne ke liye ---
+export type MediaType = "image" | "video";
+
 // --- Interface Definitions ---
+
+// --- NAYA INTERFACE: Ek single image/video ki details ke liye ---
+export interface MediaItem {
+  id?: number;
+  media_url: string;
+  media_type: MediaType;
+}
 
 // Represents product details within a fetched order
 export interface ItemProductDetail {
@@ -115,7 +125,7 @@ export interface UserUpdate {
   is_active?: boolean;
 }
 
-// --- PRODUCT INTERFACES (UPDATED) ---
+// --- PRODUCT INTERFACES (UPDATED for Multiple Media) ---
 
 export interface Product {
   id: number;
@@ -123,15 +133,16 @@ export interface Product {
   sku: string;
   stock_quantity: number;
   status: ProductStatus;
-  image_url?: string;
-  // --- NAYE FIELDS ---
   description?: string;
   category?: string;
   supplier?: string;
   reorder_level?: number;
   cost_price?: number;
   selling_price?: number;
-  last_restocked?: string; // JSON mein date string ban jaati hai
+  last_restocked?: string;
+
+  // --- UPDATE: 'image_url' ki jagah 'images' ka array ---
+  images?: MediaItem[];
 }
 
 export interface ProductCreate {
@@ -139,8 +150,6 @@ export interface ProductCreate {
   sku: string;
   stock_quantity: number;
   status: ProductStatus;
-  image_url?: string;
-  // --- NAYE FIELDS ---
   description?: string;
   category?: string;
   supplier?: string;
@@ -148,15 +157,16 @@ export interface ProductCreate {
   cost_price?: number;
   selling_price?: number;
   last_restocked?: string;
+
+  // --- UPDATE: 'image_url' ki jagah 'images' ka array ---
+  images?: MediaItem[];
 }
 
 export interface ProductUpdate {
   name?: string;
-  sku?: string; // <-- YEH LINE MISSING THI
+  sku?: string;
   stock_quantity?: number;
   status?: ProductStatus;
-  image_url?: string;
-  // --- NAYE FIELDS ---
   description?: string;
   category?: string;
   supplier?: string;
@@ -164,6 +174,9 @@ export interface ProductUpdate {
   cost_price?: number;
   selling_price?: number;
   last_restocked?: string;
+
+  // --- UPDATE: 'image_url' ki jagah 'images' ka array ---
+  images?: MediaItem[];
 }
 
 // --- VEHICLE INTERFACE ---

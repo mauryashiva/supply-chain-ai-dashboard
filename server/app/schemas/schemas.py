@@ -3,7 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
-# --- Enums (Matching Final Blueprint from models.py) ---
+# --- Enums ---
 
 class UserRole(str, Enum):
     admin = "admin"
@@ -44,18 +44,40 @@ class StockStatus(str, Enum):
     Low_Stock = "Low Stock"
     Out_of_Stock = "Out of Stock"
 
+# --- NAYA ENUM: MediaType ke liye ---
+class MediaType(str, Enum):
+    image = "image"
+    video = "video"
+
+
+# --- NAYE SCHEMAS: Product Images/Videos ke liye ---
+# API se response bhejte waqt iska istemaal hoga
+class ProductImageResponse(BaseModel):
+    id: int
+    media_url: str
+    media_type: MediaType
+
+    class Config:
+        from_attributes = True
+
+# Naya product banate ya update karte waqt iska istemaal hoga
+class ProductImageCreate(BaseModel):
+    media_url: str
+    media_type: MediaType = MediaType.image
+
 
 # --- Product Related Schemas (Updated) ---
 
 class ProductBase(BaseModel):
-    # --- Purane Fields ---
+    # Purane fields
     name: str
     sku: str
     stock_quantity: int
     status: StockStatus
-    image_url: Optional[str] = None
+    
+    # --- HATAYA GAYA: 'image_url' yahan se hata diya gaya hai ---
 
-    # --- NAYE FIELDS AAPKE TABLE KE ANUSAAR ADD KIYE GAYE HAIN ---
+    # Naye fields
     description: Optional[str] = None
     category: Optional[str] = None
     supplier: Optional[str] = None
@@ -65,16 +87,18 @@ class ProductBase(BaseModel):
     last_restocked: Optional[datetime] = None
 
 class ProductCreate(ProductBase):
-    pass
+    # Naya product banate waqt multiple images/videos ki list accept karega
+    images: List[ProductImageCreate] = []
 
 class ProductUpdate(BaseModel):
-    # --- Purane Fields ---
+    # Purane fields
     name: Optional[str] = None
     stock_quantity: Optional[int] = None
     status: Optional[StockStatus] = None
-    image_url: Optional[str] = None
+    
+    # --- HATAYA GAYA: 'image_url' yahan se hata diya gaya hai ---
 
-    # --- NAYE FIELDS AAPKE TABLE KE ANUSAAR ADD KIYE GAYE HAIN ---
+    # Naye fields
     description: Optional[str] = None
     category: Optional[str] = None
     supplier: Optional[str] = None
@@ -83,8 +107,14 @@ class ProductUpdate(BaseModel):
     selling_price: Optional[float] = None
     last_restocked: Optional[datetime] = None
 
+    # Product update karte waqt bhi multiple images/videos ki list accept karega
+    images: Optional[List[ProductImageCreate]] = None
+
 class Product(ProductBase):
     id: int
+    # Response bhejte waqt product ke saath uske images/videos ki list bhi jayegi
+    images: List[ProductImageResponse] = []
+
     class Config:
         from_attributes = True
 
@@ -141,36 +171,26 @@ class Vehicle(VehicleBase):
 
 # --- Order Related Schemas (No changes) ---
 
-# Schema for defining an item when creating an order
 class OrderItemCreate(BaseModel):
     product_id: int
     quantity: int
 
 class OrderBase(BaseModel):
-    # Customer Info
     customer_name: str
     customer_email: str
     shipping_address: str
-    
-    # Payment Info
     amount: float
     payment_status: PaymentStatus = PaymentStatus.Unpaid
     payment_method: PaymentMethod
-    
-    # Fulfillment Info
     status: OrderStatus = OrderStatus.Pending
     shipping_provider: Optional[ShippingProvider] = None
     tracking_id: Optional[str] = None
-    
-    # Logistics Info
     vehicle_id: Optional[int] = None
 
 class OrderCreate(OrderBase):
-    # An order must be created with at least one item
     items: List[OrderItemCreate]
 
 class OrderUpdate(BaseModel):
-    # Allows updating specific fulfillment fields
     status: Optional[OrderStatus] = None
     payment_status: Optional[PaymentStatus] = None
     shipping_provider: Optional[ShippingProvider] = None
@@ -187,7 +207,6 @@ class OrderUpdate(BaseModel):
 class Order(OrderBase):
     id: int
     order_date: datetime
-    # The response will show a list of items with their quantities
     items: List[ItemInOrder]
     class Config:
         from_attributes = True

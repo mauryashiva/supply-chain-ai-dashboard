@@ -1,8 +1,8 @@
 import React, { useState, type FormEvent } from "react";
 import { X, Sparkles } from "lucide-react";
-import type { Product, ProductCreate } from "@/types";
+// --- CHANGE 1: Naye 'MediaItem' type ko import karein ---
+import type { Product, ProductCreate, MediaItem } from "@/types";
 import { createProduct, generateDescription } from "@/services/api";
-// UPDATED: Import the reusable ImageUploader component
 import { ImageUploader } from "@/components/common/ImageUploader";
 
 interface AddItemModalProps {
@@ -16,6 +16,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   onClose,
   onProductAdded,
 }) => {
+  // formData state ko naye 'images' field ke liye update karein
   const [formData, setFormData] = useState<ProductCreate>({
     name: "",
     sku: "",
@@ -27,7 +28,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     selling_price: 0,
     reorder_level: 10,
     description: "",
-    image_url: "", // UPDATED: Added to hold the URL from the uploader
+    images: [], // Ab yeh ek array hai, 'image_url' nahi
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,9 +52,9 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     });
   };
 
-  // UPDATED: Handler to receive the URL from ImageUploader and update the form state
-  const handleImageUploadSuccess = (url: string) => {
-    setFormData((prev) => ({ ...prev, image_url: url }));
+  // --- CHANGE 2: Handler ab MediaItem ki list lega ---
+  const handleMediaUploadSuccess = (mediaItems: MediaItem[]) => {
+    setFormData((prev) => ({ ...prev, images: mediaItems }));
   };
 
   const handleGenerateDescription = async () => {
@@ -83,8 +84,24 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // --- CHANGE 3: Status ko stock ke aadhar par dobara calculate karein ---
+    let finalStatus = formData.status;
+    const LOW_STOCK_THRESHOLD = 10;
+    if (formData.stock_quantity <= 0) {
+      finalStatus = "Out of Stock";
+    } else if (formData.stock_quantity <= LOW_STOCK_THRESHOLD) {
+      finalStatus = "Low Stock";
+    } else {
+      finalStatus = "In Stock";
+    }
+
     try {
-      const response = await createProduct(formData);
+      // Payload mein updated status bhejein
+      const response = await createProduct({
+        ...formData,
+        status: finalStatus,
+      });
       onProductAdded(response.data);
       onClose();
     } catch (err: any) {
@@ -106,7 +123,8 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
           <X size={20} />
         </button>
         <h2 className="text-xl font-bold text-white mb-6">
-          Add New Inventory Item
+          {" "}
+          Add New Inventory Item{" "}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -251,9 +269,9 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               />
             </div>
 
-            {/* UPDATED: Replaced the text input for image URL with the reusable uploader component */}
+            {/* --- CHANGE 4: Image URL input ki jagah ImageUploader component --- */}
             <div>
-              <ImageUploader onUploadSuccess={handleImageUploadSuccess} />
+              <ImageUploader onUploadSuccess={handleMediaUploadSuccess} />
             </div>
           </div>
 

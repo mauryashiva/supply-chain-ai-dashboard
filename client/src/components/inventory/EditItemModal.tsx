@@ -1,8 +1,8 @@
 import React, { useState, useEffect, type FormEvent } from "react";
 import { X, Sparkles } from "lucide-react";
-import type { Product, ProductUpdate } from "@/types";
+// --- CHANGE 1: Naye 'MediaItem' type ko import karein ---
+import type { Product, ProductUpdate, MediaItem } from "@/types";
 import { updateProduct, generateDescription } from "@/services/api";
-// UPDATED: Import the reusable ImageUploader component
 import { ImageUploader } from "@/components/common/ImageUploader";
 
 interface EditItemModalProps {
@@ -18,6 +18,7 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
   onProductUpdated,
   product,
 }) => {
+  // formData state ab 'images' array ko handle karega
   const [formData, setFormData] = useState<ProductUpdate>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,7 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
 
   useEffect(() => {
     if (product) {
+      // formData ko product ki current details se bhar dein
       setFormData({
         name: product.name,
         sku: product.sku,
@@ -35,9 +37,10 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
         cost_price: product.cost_price,
         selling_price: product.selling_price,
         reorder_level: product.reorder_level,
-        image_url: product.image_url,
-        last_restocked: product.last_restocked,
         description: product.description,
+        // --- CHANGE 2: 'image_url' ki jagah 'images' array ---
+        images: product.images,
+        last_restocked: product.last_restocked,
       });
       setError(null);
     }
@@ -61,9 +64,9 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
     });
   };
 
-  // UPDATED: Handler to receive the URL from ImageUploader and update the form state
-  const handleImageUploadSuccess = (url: string) => {
-    setFormData((prev) => ({ ...prev, image_url: url }));
+  // --- CHANGE 3: Handler ab MediaItem ki list lega ---
+  const handleMediaUploadSuccess = (mediaItems: MediaItem[]) => {
+    setFormData((prev) => ({ ...prev, images: mediaItems }));
   };
 
   const handleGenerateDescription = async () => {
@@ -119,7 +122,8 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
           <X size={20} />
         </button>
         <h2 className="text-xl font-bold text-white mb-6">
-          Edit Item: {product.name}
+          {" "}
+          Edit Item: {product.name}{" "}
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -264,11 +268,11 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
               />
             </div>
 
-            {/* UPDATED: Replaced the text input for image URL with the uploader component */}
+            {/* --- CHANGE 4: ImageUploader component ka istemaal --- */}
             <div>
               <ImageUploader
-                onUploadSuccess={handleImageUploadSuccess}
-                initialImageUrl={formData.image_url || undefined}
+                onUploadSuccess={handleMediaUploadSuccess}
+                initialMedia={product.images}
               />
             </div>
           </div>

@@ -6,7 +6,7 @@ from ..database import Base
 import enum
 import datetime
 
-# --- Enums (Aapke purane enums bilkul waise hi hain) ---
+# --- Enums ---
 
 class UserRole(str, enum.Enum):
     admin = "admin"
@@ -47,8 +47,13 @@ class StockStatus(str, enum.Enum):
     Low_Stock = "Low Stock"
     Out_of_Stock = "Out of Stock"
 
+# --- NAYA ENUM: Image aur Video mein fark karne ke liye ---
+class MediaType(str, enum.Enum):
+    image = "image"
+    video = "video"
 
-# --- Association Object (Yeh bhi pehle jaisa hi hai) ---
+
+# --- Association Object for Order <-> Product Relationship ---
 class OrderItem(Base):
     __tablename__ = 'order_items'
     order_id = Column(Integer, ForeignKey('orders.id'), primary_key=True)
@@ -57,6 +62,19 @@ class OrderItem(Base):
     
     order = relationship("Order", back_populates="items")
     product = relationship("Product")
+
+# --- NAYA MODEL: Multiple Images/Videos store karne ke liye ---
+class ProductImage(Base):
+    __tablename__ = 'product_images'
+    id = Column(Integer, primary_key=True, index=True)
+    media_url = Column(String, nullable=False)
+    media_type = Column(Enum(MediaType), default=MediaType.image)
+    
+    # Foreign Key jo Product table se link karega
+    product_id = Column(Integer, ForeignKey('products.id'))
+    
+    # Relationship wapas Product model se
+    product = relationship("Product", back_populates="images")
 
 
 # --- Main Table Models ---
@@ -70,20 +88,20 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     hashed_password = Column(String)
 
-# --- PRODUCT MODEL KO UPDATE KIYA GAYA HAI ---
 class Product(Base):
     __tablename__ = "products"
     
-    # --- Purane Columns (Waise hi hain) ---
+    # --- Purane Columns ---
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     sku = Column(String, unique=True, index=True)
     stock_quantity = Column(Integer)
     status = Column(Enum(StockStatus))
-    image_url = Column(String, nullable=True) # Pehle se tha
-
-    # --- Naye Columns (Aapke table ke anusaar) ---
-    description = Column(Text, nullable=True)  # AI Description ke liye 'Text' behtar hai
+    
+    # --- HATAYA GAYA: Purana 'image_url' column yahan se hata diya gaya hai ---
+    
+    # --- Naye Columns ---
+    description = Column(Text, nullable=True)
     category = Column(String, index=True, nullable=True)
     supplier = Column(String, nullable=True)
     reorder_level = Column(Integer, default=10, nullable=True)
@@ -91,9 +109,12 @@ class Product(Base):
     selling_price = Column(Float, nullable=True)
     last_restocked = Column(DateTime, nullable=True)
 
+    # --- NAYA RELATIONSHIP: ProductImage table se ---
+    # Isse ek product ke paas multiple images/videos ki list ho sakti hai
+    images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
+
 
 class Order(Base):
-    # ... (Order model bilkul pehle jaisa hi hai, koi change nahi) ...
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True, index=True)
     order_date = Column(DateTime, default=datetime.datetime.utcnow)
@@ -110,7 +131,6 @@ class Order(Base):
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 class Vehicle(Base):
-    # ... (Vehicle model bilkul pehle jaisa hi hai, koi change nahi) ...
     __tablename__ = "vehicles"
     id = Column(Integer, primary_key=True, index=True)
     vehicle_number = Column(String, unique=True, index=True)
