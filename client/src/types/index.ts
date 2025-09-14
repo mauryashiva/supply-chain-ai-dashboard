@@ -1,5 +1,4 @@
 // --- Type Aliases ---
-
 export type OrderStatus =
   | "Pending"
   | "Processing"
@@ -24,13 +23,10 @@ export type ShippingProvider =
 export type ProductStatus = "In Stock" | "Low Stock" | "Out of Stock";
 export type VehicleStatus = "On Route" | "Idle" | "In-Shop";
 export type UserRole = "admin" | "user";
-
-// --- NAYA TYPE: Image aur video mein fark karne ke liye ---
 export type MediaType = "image" | "video";
 
 // --- Interface Definitions ---
 
-// --- NAYA INTERFACE: Ek single image/video ki details ke liye ---
 export interface MediaItem {
   id?: number;
   media_url: string;
@@ -59,21 +55,16 @@ export interface OrderItemCreate {
 export interface Order {
   id: number;
   order_date: string;
-  // Customer
   customer_name: string;
   customer_email: string;
   shipping_address: string;
-  // Payment
   amount: number;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod;
-  // Fulfillment
   status: OrderStatus;
   shipping_provider?: ShippingProvider;
   tracking_id?: string;
-  // Logistics
   vehicle_id?: number;
-  // Items in the order
   items: ItemInOrder[];
 }
 
@@ -89,7 +80,6 @@ export interface OrderCreate {
   shipping_provider?: ShippingProvider;
   tracking_id?: string;
   vehicle_id?: number;
-  // An order must be created with items
   items: OrderItemCreate[];
 }
 
@@ -125,8 +115,7 @@ export interface UserUpdate {
   is_active?: boolean;
 }
 
-// --- PRODUCT INTERFACES (UPDATED for Multiple Media) ---
-
+// --- PRODUCT INTERFACES ---
 export interface Product {
   id: number;
   name: string;
@@ -140,8 +129,6 @@ export interface Product {
   cost_price?: number;
   selling_price?: number;
   last_restocked?: string;
-
-  // --- UPDATE: 'image_url' ki jagah 'images' ka array ---
   images?: MediaItem[];
 }
 
@@ -157,8 +144,6 @@ export interface ProductCreate {
   cost_price?: number;
   selling_price?: number;
   last_restocked?: string;
-
-  // --- UPDATE: 'image_url' ki jagah 'images' ka array ---
   images?: MediaItem[];
 }
 
@@ -174,8 +159,6 @@ export interface ProductUpdate {
   cost_price?: number;
   selling_price?: number;
   last_restocked?: string;
-
-  // --- UPDATE: 'image_url' ki jagah 'images' ka array ---
   images?: MediaItem[];
 }
 
@@ -190,6 +173,16 @@ export interface Vehicle {
   fuel_level: number;
   latitude: number;
   longitude: number;
+}
+
+// --- NEW INTERFACES: For App Settings ---
+export interface AppSetting {
+  setting_key: string;
+  setting_value: string;
+}
+
+export interface AppSettingsUpdate {
+  settings: AppSetting[];
 }
 
 // --- ANALYTICS INTERFACES ---

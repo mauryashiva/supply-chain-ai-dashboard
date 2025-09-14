@@ -1,8 +1,12 @@
 import React, { useState, useEffect, type FormEvent } from "react";
 import { X, Sparkles } from "lucide-react";
-// --- CHANGE 1: Naye 'MediaItem' type ko import karein ---
-import type { Product, ProductUpdate, MediaItem } from "@/types";
-import { updateProduct, generateDescription } from "@/services/api";
+// --- CHANGE 1: Import new types and API function ---
+import type { Product, ProductUpdate, MediaItem, ProductStatus } from "@/types";
+import {
+  updateProduct,
+  generateDescription,
+  getSettings,
+} from "@/services/api";
 import { ImageUploader } from "@/components/common/ImageUploader";
 
 interface EditItemModalProps {
@@ -18,15 +22,17 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
   onProductUpdated,
   product,
 }) => {
-  // formData state ab 'images' array ko handle karega
   const [formData, setFormData] = useState<ProductUpdate>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // --- CHANGE 2: New state to store settings ---
+  const [settings, setSettings] = useState<{ [key: string]: string }>({});
+
   useEffect(() => {
-    if (product) {
-      // formData ko product ki current details se bhar dein
+    // When the modal opens or the product changes, update the form
+    if (product && isOpen) {
       setFormData({
         name: product.name,
         sku: product.sku,
@@ -38,33 +44,69 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
         selling_price: product.selling_price,
         reorder_level: product.reorder_level,
         description: product.description,
-        // --- CHANGE 2: 'image_url' ki jagah 'images' array ---
         images: product.images,
         last_restocked: product.last_restocked,
       });
       setError(null);
-    }
-  }, [product]);
 
+      // --- CHANGE 3: Also fetch settings ---
+      const fetchSettings = async () => {
+        try {
+          const response = await getSettings();
+          const settingsMap = response.data.reduce((acc, setting) => {
+            acc[setting.setting_key] = setting.setting_value;
+            return acc;
+          }, {} as { [key: string]: string });
+          setSettings(settingsMap);
+        } catch (error) {
+          console.error("Failed to fetch settings:", error);
+        }
+      };
+      fetchSettings();
+    }
+  }, [product, isOpen]);
+
+  // --- CHANGE 4: Update the handleChange function ---
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
     const { name, value } = e.target;
-    const isNumberField = [
-      "stock_quantity",
-      "cost_price",
-      "selling_price",
-      "reorder_level",
-    ].includes(name);
-    setFormData({
-      ...formData,
-      [name]: isNumberField ? parseFloat(value) || 0 : value,
-    });
+
+    let updatedFormData: ProductUpdate = { ...formData, [name]: value };
+
+    if (name === "stock_quantity") {
+      const stock = parseInt(value, 10) || 0;
+      const lowStockThreshold =
+        parseInt(settings["LOW_STOCK_THRESHOLD"], 10) || 10;
+
+      let newStatus: ProductStatus = "In Stock";
+      if (stock <= 0) {
+        newStatus = "Out of Stock";
+      } else if (stock <= lowStockThreshold) {
+        newStatus = "Low Stock";
+      }
+
+      updatedFormData.status = newStatus;
+      updatedFormData.stock_quantity = stock; // Ensure stock_quantity is also updated as a number
+    } else {
+      const isNumberField = [
+        "cost_price",
+        "selling_price",
+        "reorder_level",
+      ].includes(name);
+      if (isNumberField) {
+        updatedFormData = {
+          ...formData,
+          [name]: parseFloat(value) || 0,
+        };
+      }
+    }
+
+    setFormData(updatedFormData);
   };
 
-  // --- CHANGE 3: Handler ab MediaItem ki list lega ---
   const handleMediaUploadSuccess = (mediaItems: MediaItem[]) => {
     setFormData((prev) => ({ ...prev, images: mediaItems }));
   };
@@ -225,23 +267,25 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
                   className="w-full bg-zinc-800 rounded px-3 py-2"
                 />
               </div>
+              {/* --- CHANGE 5: The status dropdown will now be disabled --- */}
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-1">
-                  Selling Price (₹)
+                  Status (Auto)
                 </label>
-                <input
-                  type="number"
-                  name="selling_price"
-                  value={formData.selling_price || 0}
+                <select
+                  name="status"
+                  value={formData.status || ""}
+                  disabled
                   onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full bg-zinc-800 rounded px-3 py-2"
-                />
+                  className="w-full bg-zinc-800 rounded px-3 py-2 disabled:opacity-70"
+                >
+                  <option>In Stock</option>
+                  <option>Low Stock</option>
+                  <option>Out of Stock</option>
+                </select>
               </div>
             </div>
           </div>
-
           <div className="pt-2 space-y-4">
             <div>
               <div className="flex justify-between items-center mb-1">
@@ -267,8 +311,6 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
                 className="w-full bg-zinc-800 rounded px-3 py-2"
               />
             </div>
-
-            {/* --- CHANGE 4: ImageUploader component ka istemaal --- */}
             <div>
               <ImageUploader
                 onUploadSuccess={handleMediaUploadSuccess}
@@ -276,11 +318,9 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
               />
             </div>
           </div>
-
           {error && (
             <p className="text-red-400 text-sm pt-2 text-center">{error}</p>
           )}
-
           <div className="pt-4 flex justify-end gap-3">
             <button
               type="button"

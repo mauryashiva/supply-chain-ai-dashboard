@@ -1,8 +1,12 @@
-import React, { useState, type FormEvent } from "react";
+import React, { useState, useEffect, type FormEvent } from "react";
 import { X, Sparkles } from "lucide-react";
-// --- CHANGE 1: Naye 'MediaItem' type ko import karein ---
-import type { Product, ProductCreate, MediaItem } from "@/types";
-import { createProduct, generateDescription } from "@/services/api";
+// --- Types and API functions ---
+import type { Product, ProductCreate, MediaItem, ProductStatus } from "@/types";
+import {
+  createProduct,
+  generateDescription,
+  getSettings,
+} from "@/services/api";
 import { ImageUploader } from "@/components/common/ImageUploader";
 
 interface AddItemModalProps {
@@ -16,43 +20,91 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   onClose,
   onProductAdded,
 }) => {
-  // formData state ko naye 'images' field ke liye update karein
   const [formData, setFormData] = useState<ProductCreate>({
     name: "",
     sku: "",
     stock_quantity: 0,
-    status: "In Stock",
+    status: "In Stock", // Initial status
     category: "",
     supplier: "",
     cost_price: 0,
     selling_price: 0,
     reorder_level: 10,
     description: "",
-    images: [], // Ab yeh ek array hai, 'image_url' nahi
+    images: [],
   });
+
+  // State to store settings
+  const [settings, setSettings] = useState<{ [key: string]: string }>({});
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Fetch settings when the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchSettings = async () => {
+        try {
+          const response = await getSettings();
+          // Convert settings array to an easy-to-use object
+          const settingsMap = response.data.reduce((acc, setting) => {
+            acc[setting.setting_key] = setting.setting_value;
+            return acc;
+          }, {} as { [key: string]: string });
+          setSettings(settingsMap);
+        } catch (error) {
+          console.error("Failed to fetch settings:", error);
+        }
+      };
+      fetchSettings();
+    }
+  }, [isOpen]);
+
+  // Handle form input changes and auto-update status
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
     const { name, value } = e.target;
-    const isNumberField = [
-      "stock_quantity",
-      "cost_price",
-      "selling_price",
-      "reorder_level",
-    ].includes(name);
-    setFormData({
-      ...formData,
-      [name]: isNumberField ? parseFloat(value) || 0 : value,
-    });
+
+    // Use a temporary variable for the new form data
+    let updatedFormData: ProductCreate = { ...formData, [name]: value };
+
+    // If stock_quantity is being changed, update the status automatically
+    if (name === "stock_quantity") {
+      const stock = parseInt(value, 10) || 0;
+      const lowStockThreshold =
+        parseInt(settings["LOW_STOCK_THRESHOLD"], 10) || 10;
+
+      let newStatus: ProductStatus = "In Stock";
+      if (stock <= 0) {
+        newStatus = "Out of Stock";
+      } else if (stock <= lowStockThreshold) {
+        newStatus = "Low Stock";
+      }
+
+      updatedFormData.status = newStatus;
+      updatedFormData.stock_quantity = stock;
+    } else {
+      // Handle other number fields separately to avoid parsing non-numeric values
+      const isNumberField = [
+        "cost_price",
+        "selling_price",
+        "reorder_level",
+      ].includes(name);
+
+      // This logic was updated to correctly handle non-numeric and numeric fields
+      updatedFormData = {
+        ...formData,
+        [name]: isNumberField ? parseFloat(value) || 0 : value,
+      };
+    }
+
+    setFormData(updatedFormData);
   };
 
-  // --- CHANGE 2: Handler ab MediaItem ki list lega ---
   const handleMediaUploadSuccess = (mediaItems: MediaItem[]) => {
     setFormData((prev) => ({ ...prev, images: mediaItems }));
   };
@@ -84,24 +136,9 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    // --- CHANGE 3: Status ko stock ke aadhar par dobara calculate karein ---
-    let finalStatus = formData.status;
-    const LOW_STOCK_THRESHOLD = 10;
-    if (formData.stock_quantity <= 0) {
-      finalStatus = "Out of Stock";
-    } else if (formData.stock_quantity <= LOW_STOCK_THRESHOLD) {
-      finalStatus = "Low Stock";
-    } else {
-      finalStatus = "In Stock";
-    }
-
     try {
-      // Payload mein updated status bhejein
-      const response = await createProduct({
-        ...formData,
-        status: finalStatus,
-      });
+      // No need to re-calculate status, as handleChange already sets it
+      const response = await createProduct(formData);
       onProductAdded(response.data);
       onClose();
     } catch (err: any) {
@@ -228,21 +265,22 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-1">
-                  Selling Price (₹)
+                  Status (Auto)
                 </label>
-                <input
-                  type="number"
-                  name="selling_price"
-                  value={formData.selling_price}
+                <select
+                  name="status"
+                  value={formData.status}
+                  disabled // This field cannot be edited by the user
                   onChange={handleChange}
-                  min="0"
-                  step="0.01"
-                  className="w-full bg-zinc-800 rounded px-3 py-2"
-                />
+                  className="w-full bg-zinc-800 rounded px-3 py-2 disabled:opacity-70"
+                >
+                  <option>In Stock</option>
+                  <option>Low Stock</option>
+                  <option>Out of Stock</option>
+                </select>
               </div>
             </div>
           </div>
-
           <div className="pt-2 space-y-4">
             <div>
               <div className="flex justify-between items-center mb-1">
@@ -268,17 +306,16 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 className="w-full bg-zinc-800 rounded px-3 py-2"
               />
             </div>
-
-            {/* --- CHANGE 4: Image URL input ki jagah ImageUploader component --- */}
             <div>
-              <ImageUploader onUploadSuccess={handleMediaUploadSuccess} />
+              <ImageUploader
+                onUploadSuccess={handleMediaUploadSuccess}
+                initialMedia={formData.images}
+              />
             </div>
           </div>
-
           {error && (
             <p className="text-red-400 text-sm pt-2 text-center">{error}</p>
           )}
-
           <div className="pt-4 flex justify-end gap-3">
             <button
               type="button"

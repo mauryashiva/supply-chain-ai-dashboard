@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+// --- CHANGE 1: Import the new SettingsModal ---
+import { SettingsModal } from "@/components/settings/SettingsModal";
 
 // NavItem Component (No Change)
 interface NavItemProps {
@@ -107,81 +109,99 @@ const DashboardLayout: React.FC = () => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // --- CHANGE 2: New state to control the Settings modal ---
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
   return (
-    <div
-      className={cn(
-        "grid min-h-screen w-full bg-zinc-950 text-white transition-[grid-template-columns] duration-300 ease-in-out",
-        isSidebarExpanded
-          ? "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
-          : "md:grid-cols-[68px_1fr]"
-      )}
-    >
-      {/* --- DESKTOP SIDEBAR --- */}
-      <div className="hidden border-r border-zinc-800 bg-zinc-900/50 md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4 lg:h-[60px]">
-            <NavLink
-              to="/"
-              className="flex items-center gap-2 font-semibold overflow-hidden"
-            >
-              <Truck className="h-6 w-6 text-cyan-400 flex-shrink-0" />
-              <span
-                className={cn(
-                  "whitespace-nowrap transition-opacity",
-                  isSidebarExpanded ? "opacity-100" : "opacity-0"
-                )}
+    <>
+      {/* --- CHANGE 3: Render the SettingsModal here --- */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
+
+      <div
+        className={cn(
+          "grid min-h-screen w-full bg-zinc-950 text-white transition-[grid-template-columns] duration-300 ease-in-out",
+          isSidebarExpanded
+            ? "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
+            : "md:grid-cols-[68px_1fr]"
+        )}
+      >
+        {/* --- DESKTOP SIDEBAR --- */}
+        <div className="hidden border-r border-zinc-800 bg-zinc-900/50 md:block">
+          <div className="flex h-full max-h-screen flex-col gap-2">
+            <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4 lg:h-[60px]">
+              <NavLink
+                to="/"
+                className="flex items-center gap-2 font-semibold overflow-hidden"
               >
-                SupplyChain AI
-              </span>
-            </NavLink>
-            <button
-              onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-              className="p-2 rounded-md hover:bg-zinc-700/50"
-            >
-              <PanelLeft
-                className={cn(
-                  "h-5 w-5 transition-transform",
-                  !isSidebarExpanded && "rotate-180"
-                )}
-              />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <nav className="grid items-start px-2 text-sm font-medium">
-              {navItems.map((item) => (
-                <NavItem
-                  key={item.to}
-                  {...item}
-                  isExpanded={isSidebarExpanded}
+                <Truck className="h-6 w-6 text-cyan-400 flex-shrink-0" />
+                <span
+                  className={cn(
+                    "whitespace-nowrap transition-opacity",
+                    isSidebarExpanded ? "opacity-100" : "opacity-0"
+                  )}
+                >
+                  SupplyChain AI
+                </span>
+              </NavLink>
+              <button
+                onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                className="p-2 rounded-md hover:bg-zinc-700/50"
+              >
+                <PanelLeft
+                  className={cn(
+                    "h-5 w-5 transition-transform",
+                    !isSidebarExpanded && "rotate-180"
+                  )}
                 />
-              ))}
-            </nav>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <nav className="grid items-start px-2 text-sm font-medium">
+                {navItems.map((item) => (
+                  <NavItem
+                    key={item.to}
+                    {...item}
+                    isExpanded={isSidebarExpanded}
+                  />
+                ))}
+              </nav>
+            </div>
           </div>
         </div>
+
+        <div className="flex flex-col h-screen overflow-hidden">
+          <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-900/50 px-4 lg:h-[60px] lg:px-6">
+            <button
+              className="md:hidden p-2 -ml-2"
+              onClick={() => setIsMobileSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="w-full flex-1"></div>
+            <Bell className="h-5 w-5 text-zinc-400" />
+
+            {/* --- CHANGE 4: Make the Settings icon clickable --- */}
+            <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="p-1 rounded-full hover:bg-zinc-700/50"
+              title="Settings"
+            >
+              <Settings className="h-5 w-5 text-zinc-400" />
+            </button>
+          </header>
+          <main className="flex-1 p-4 sm:p-6 bg-zinc-950 overflow-auto">
+            <Outlet />
+          </main>
+        </div>
+        <MobileSidebar
+          isOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+        />
       </div>
-      {/* --- [UPDATED LINE] --- */}
-      {/* Is div mein `h-screen overflow-hidden` add kiya gaya hai */}
-      <div className="flex flex-col h-screen overflow-hidden">
-        <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-900/50 px-4 lg:h-[60px] lg:px-6">
-          <button
-            className="md:hidden p-2 -ml-2"
-            onClick={() => setIsMobileSidebarOpen(true)}
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="w-full flex-1"></div>
-          <Bell className="h-5 w-5 text-zinc-400" />
-          <Settings className="h-5 w-5 text-zinc-400" />
-        </header>
-        <main className="flex-1 p-4 sm:p-6 bg-zinc-950 overflow-auto">
-          <Outlet />
-        </main>
-      </div>
-      <MobileSidebar
-        isOpen={isMobileSidebarOpen}
-        onClose={() => setIsMobileSidebarOpen(false)}
-      />
-    </div>
+    </>
   );
 };
 

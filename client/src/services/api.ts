@@ -11,6 +11,9 @@ import type {
   UserUpdate,
   OrderCreate,
   OrderUpdate,
+  // --- CHANGE 1: Import new settings types ---
+  AppSetting,
+  AppSettingsUpdate,
 } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -65,9 +68,15 @@ export const updateOrder = (orderId: number, orderData: OrderUpdate) =>
 export const deleteOrder = (orderId: number) =>
   apiClient.delete(`/orders/${orderId}`);
 
-// --- NEW AI HELPER FUNCTION ---
+// -- AI Helper Functions --
 export const generateDescription = (productName: string, category?: string) =>
   apiClient.post<{ description: string }>("/ai/generate-description", {
     product_name: productName,
     category: category,
   });
+
+// --- CHANGE 2: New Functions for App Settings ---
+export const getSettings = () => apiClient.get<AppSetting[]>("/settings/");
+
+export const updateSettings = (settingsData: AppSettingsUpdate) =>
+  apiClient.put<AppSetting[]>("/settings/", settingsData);

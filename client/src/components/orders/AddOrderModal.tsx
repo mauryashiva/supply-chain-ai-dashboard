@@ -10,7 +10,8 @@ import type {
   OrderStatus,
 } from "@/types";
 import { createOrder } from "@/services/api";
-import { AddProductModal } from "./AddProductModal";
+// --- CHANGE 1: Replace 'AddProductModal' with 'QuickAddProductModal' ---
+import { QuickAddProductModal } from "./QuickAddProductModal";
 import { ModalLayout } from "@/layouts/ModalLayout";
 
 interface AddOrderModalProps {
@@ -46,9 +47,13 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [itemQuantity, setItemQuantity] = useState<number>(1);
-  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
 
-  // FEATURE 1: DROPDOWN KO FILTER KARNE KI LOGIC
+  // --- CHANGE 2: Rename 'isAddProductOpen' to 'isQuickAddOpen' for clarity ---
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+
+  // This state will store the name typed in the search box
+  const [typedProductName, setTypedProductName] = useState("");
+
   const availableProducts = useMemo(() => {
     const addedProductIds = formState.items.map((item) => item.product_id);
     return products.filter((p) => !addedProductIds.includes(p.id));
@@ -101,7 +106,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     setError(null);
   };
 
-  // FEATURE 2: QUANTITY EDIT KARNE KE LIYE NAYA FUNCTION
   const handleQuantityChange = (productId: number, newQuantity: number) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
@@ -134,6 +138,15 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
       ...prev,
       items: prev.items.filter((item) => item.product_id !== productIdToRemove),
     }));
+  };
+
+  // --- CHANGE 3: This function will be called when the '+' button is clicked ---
+  const handleOpenQuickAdd = () => {
+    const nameInput = document.querySelector(
+      'input[name="product-search"]'
+    ) as HTMLInputElement;
+    setTypedProductName(nameInput ? nameInput.value : "");
+    setIsQuickAddOpen(true);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -179,11 +192,13 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
 
   return (
     <>
-      <AddProductModal
-        isOpen={isAddProductOpen}
-        onClose={() => setIsAddProductOpen(false)}
+      {/* --- CHANGE 4: The new 'QuickAddProductModal' is rendered here --- */}
+      <QuickAddProductModal
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
         onProductAdded={onProductAdded}
         setSelectedProductId={setSelectedProductId}
+        initialProductName={typedProductName}
       />
 
       <ModalLayout
@@ -248,7 +263,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 </label>
                 <input
                   list="products-list"
-                  name="product"
+                  // --- CHANGE 5: Input name changed to allow selection ---
+                  name="product-search"
                   value={selectedProductId}
                   onChange={(e) => setSelectedProductId(e.target.value)}
                   placeholder="Type or select a product..."
@@ -284,9 +300,10 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                   className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
                 />
               </div>
+              {/* '+' button now calls the new function */}
               <button
                 type="button"
-                onClick={() => setIsAddProductOpen(true)}
+                onClick={handleOpenQuickAdd}
                 className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-2 rounded-lg h-10"
                 title="Create a new product from typed name"
               >
