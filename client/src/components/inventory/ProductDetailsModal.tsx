@@ -9,12 +9,12 @@ import {
   DollarSign,
   Bell,
   Calendar,
+  Percent, // --- CHANGE 1: Import the Percent icon ---
 } from "lucide-react";
 import type { Product } from "@/types";
 import { StockStatusBadge } from "./InventoryComponents";
 import { Carousel } from "react-responsive-carousel";
 import "react-responsive-carousel/lib/styles/carousel.min.css";
-// --- CHANGE 1: Import the reusable ModalLayout component ---
 import { ModalLayout } from "@/layouts/ModalLayout";
 
 interface ProductDetailsModalProps {
@@ -62,13 +62,11 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 
   const stockValue = (product.cost_price || 0) * product.stock_quantity;
 
-  // --- CHANGE 2: The entire return statement is now wrapped in ModalLayout ---
-  // The old manual layout (backdrop, panel, title, close button) has been removed.
   return (
     <ModalLayout
       isOpen={isOpen}
       onClose={onClose}
-      title={product.name} // The title is now passed as a prop
+      title={product.name}
       size="max-w-3xl"
     >
       <div>
@@ -109,7 +107,6 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                 : "w-full"
             }
           >
-            {/* The main title is now handled by ModalLayout, so we only need the SKU here */}
             <p className="text-sm font-mono text-zinc-400 mb-6 -mt-2">
               SKU: {product.sku}
             </p>
@@ -139,6 +136,16 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                 icon={DollarSign}
                 label="Selling Price"
                 value={formatCurrency(product.selling_price)}
+              />
+              {/* --- CHANGE 2: Added a DetailItem to display the GST Rate --- */}
+              <DetailItem
+                icon={Percent}
+                label="GST Rate"
+                value={
+                  typeof product.gst_rate === "number"
+                    ? `${product.gst_rate}%`
+                    : "N/A"
+                }
               />
               <DetailItem
                 icon={Hash}

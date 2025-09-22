@@ -31,15 +31,24 @@ class ProductBase(BaseModel):
     name: str; sku: str; stock_quantity: int; status: StockStatus
     description: Optional[str] = None; category: Optional[str] = None; supplier: Optional[str] = None
     reorder_level: Optional[int] = None; cost_price: Optional[float] = None
-    selling_price: Optional[float] = None; last_restocked: Optional[datetime] = None
+    selling_price: Optional[float] = None
+    # --- UPDATE: Added gst_rate field ---
+    gst_rate: Optional[float] = 0.0
+    last_restocked: Optional[datetime] = None
+
 class ProductCreate(ProductBase):
     images: List[ProductImageCreate] = []
+
 class ProductUpdate(BaseModel):
     name: Optional[str] = None; stock_quantity: Optional[int] = None; status: Optional[StockStatus] = None
     description: Optional[str] = None; category: Optional[str] = None; supplier: Optional[str] = None
     reorder_level: Optional[int] = None; cost_price: Optional[float] = None
-    selling_price: Optional[float] = None; last_restocked: Optional[datetime] = None
+    selling_price: Optional[float] = None
+    # --- UPDATE: Added gst_rate field ---
+    gst_rate: Optional[float] = None
+    last_restocked: Optional[datetime] = None
     images: Optional[List[ProductImageCreate]] = None
+    
 class Product(ProductBase):
     id: int; images: List[ProductImageResponse] = []
     class Config: from_attributes = True

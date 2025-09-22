@@ -16,24 +16,12 @@ interface AddItemModalProps {
   onProductAdded: (newProduct: Product) => void;
 }
 
-type NumericValue = number | "";
-
 export const AddItemModal: React.FC<AddItemModalProps> = ({
   isOpen,
   onClose,
   onProductAdded,
 }) => {
-  const [formData, setFormData] = useState<
-    Omit<
-      ProductCreate,
-      "stock_quantity" | "reorder_level" | "cost_price" | "selling_price"
-    > & {
-      stock_quantity: NumericValue;
-      reorder_level: NumericValue;
-      cost_price: NumericValue;
-      selling_price: NumericValue;
-    }
-  >({
+  const [formData, setFormData] = useState<ProductCreate>({
     name: "",
     sku: "",
     stock_quantity: 0,
@@ -45,6 +33,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     reorder_level: 10,
     description: "",
     images: [],
+    gst_rate: 0,
   });
 
   const [settings, setSettings] = useState<{ [key: string]: string }>({});
@@ -81,37 +70,35 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       "reorder_level",
       "cost_price",
       "selling_price",
+      "gst_rate",
     ];
 
-    if (numberFields.includes(name)) {
-      const numericValue = value === "" ? "" : parseFloat(value);
-      if (isNaN(numericValue as number)) {
-        return;
-      }
-      const newFormData = { ...formData, [name]: numericValue };
-      if (name === "stock_quantity") {
-        const stock = Number(numericValue) || 0;
-        const lowStockThreshold =
-          parseInt(settings["LOW_STOCK_THRESHOLD"], 10) || 10;
+    const newFormData = { ...formData, [name]: value };
 
-        let newStatus: ProductStatus = "In Stock";
-        if (stock <= 0) {
-          newStatus = "Out of Stock";
-        } else if (stock <= lowStockThreshold) {
-          newStatus = "Low Stock";
-        }
-        newFormData.status = newStatus;
-      }
-      setFormData(newFormData);
-    } else {
-      setFormData({ ...formData, [name]: value });
+    if (numberFields.includes(name)) {
+      const parsedValue = value === "" ? "" : parseFloat(value);
+      if (isNaN(parsedValue as number)) return;
+      (newFormData as any)[name] = parsedValue;
     }
+
+    if (name === "stock_quantity") {
+      const stock = Number(value) || 0;
+      const lowStockThreshold =
+        parseInt(settings["LOW_STOCK_THRESHOLD"], 10) || 10;
+
+      let newStatus: ProductStatus = "In Stock";
+      if (stock <= 0) {
+        newStatus = "Out of Stock";
+      } else if (stock <= lowStockThreshold) {
+        newStatus = "Low Stock";
+      }
+      newFormData.status = newStatus;
+    }
+
+    setFormData(newFormData);
   };
 
-  const handleStepChange = (
-    fieldName: keyof typeof formData,
-    amount: number
-  ) => {
+  const handleStepChange = (fieldName: keyof ProductCreate, amount: number) => {
     const currentValue = Number(formData[fieldName]) || 0;
     let newValue = currentValue + amount;
     if (newValue < 0) {
@@ -127,7 +114,6 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     setFormData((prev) => ({ ...prev, images: mediaItems }));
   };
 
-  // --- THIS FUNCTION WAS MISSING. IT IS NOW CORRECTLY INCLUDED. ---
   const handleGenerateDescription = async () => {
     if (!formData.name) {
       alert("Please enter a Product Name first to generate a description.");
@@ -155,13 +141,16 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     const payload = {
       ...formData,
       stock_quantity: Number(formData.stock_quantity) || 0,
       reorder_level: Number(formData.reorder_level) || 0,
       cost_price: Number(formData.cost_price) || 0,
       selling_price: Number(formData.selling_price) || 0,
+      gst_rate: Number(formData.gst_rate) || 0,
     };
+
     try {
       const response = await createProduct(payload);
       onProductAdded(response.data);
@@ -222,7 +211,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               <input
                 type="text"
                 name="category"
-                value={formData.category}
+                value={formData.category || ""}
                 onChange={handleChange}
                 className={`${inputStyles} !pr-3`}
               />
@@ -234,10 +223,26 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
               <input
                 type="text"
                 name="supplier"
-                value={formData.supplier}
+                value={formData.supplier || ""}
                 onChange={handleChange}
                 className={`${inputStyles} !pr-3`}
               />
+            </div>
+            {/* --- UI CHANGE: Moved Status field to the first column for better balance --- */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                Status (Auto)
+              </label>
+              <select
+                name="status"
+                value={formData.status}
+                disabled
+                className={`${inputStyles} !pr-3 disabled:opacity-70 disabled:cursor-not-allowed`}
+              >
+                <option>In Stock</option>
+                <option>Low Stock</option>
+                <option>Out of Stock</option>
+              </select>
             </div>
           </div>
 
@@ -374,20 +379,40 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
                 </div>
               </div>
             </div>
+
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Status (Auto)
+                GST Rate (%)
               </label>
-              <select
-                name="status"
-                value={formData.status}
-                disabled
-                className={`${inputStyles} !pr-3 disabled:opacity-70 disabled:cursor-not-allowed`}
-              >
-                <option>In Stock</option>
-                <option>Low Stock</option>
-                <option>Out of Stock</option>
-              </select>
+              <div className="relative">
+                <input
+                  type="number"
+                  name="gst_rate"
+                  value={formData.gst_rate}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g., 18"
+                  className={`${inputStyles} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange("gst_rate", -1)}
+                    disabled={Number(formData.gst_rate) <= 0}
+                    className="px-2 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange("gst_rate", 1)}
+                    className="px-2 text-zinc-400 hover:text-white"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

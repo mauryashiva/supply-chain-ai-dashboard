@@ -8,7 +8,6 @@ import {
   getSettings,
 } from "@/services/api";
 import { ImageUploader } from "@/components/common/ImageUploader";
-// --- CHANGE 1: Import the reusable ModalLayout component ---
 import { ModalLayout } from "@/layouts/ModalLayout";
 
 interface EditItemModalProps {
@@ -20,14 +19,20 @@ interface EditItemModalProps {
 
 type NumericValue = number | "";
 
+// --- UPDATE: Add gst_rate to the form data type ---
 type EditFormData = Omit<
   ProductUpdate,
-  "stock_quantity" | "reorder_level" | "cost_price" | "selling_price"
+  | "stock_quantity"
+  | "reorder_level"
+  | "cost_price"
+  | "selling_price"
+  | "gst_rate"
 > & {
   stock_quantity?: NumericValue;
   reorder_level?: NumericValue;
   cost_price?: NumericValue;
   selling_price?: NumericValue;
+  gst_rate?: NumericValue;
 };
 
 export const EditItemModal: React.FC<EditItemModalProps> = ({
@@ -57,6 +62,7 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
         description: product.description,
         images: product.images,
         last_restocked: product.last_restocked,
+        gst_rate: product.gst_rate,
       });
       setError(null);
 
@@ -87,6 +93,7 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
       "reorder_level",
       "cost_price",
       "selling_price",
+      "gst_rate",
     ];
 
     if (numberFields.includes(name)) {
@@ -130,6 +137,7 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
     setFormData((prev) => ({ ...prev, images: mediaItems }));
   };
 
+  // --- THIS FUNCTION WAS MISSING. IT IS NOW ADDED BACK. ---
   const handleGenerateDescription = async () => {
     if (!formData.name) {
       alert(
@@ -160,13 +168,16 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
     if (!product) return;
     setLoading(true);
     setError(null);
+
     const payload = {
       ...formData,
       stock_quantity: Number(formData.stock_quantity) || 0,
       reorder_level: Number(formData.reorder_level) || 0,
       cost_price: Number(formData.cost_price) || 0,
       selling_price: Number(formData.selling_price) || 0,
+      gst_rate: Number(formData.gst_rate) || 0,
     };
+
     try {
       const response = await updateProduct(product.id, payload);
       onProductUpdated(response.data);
@@ -183,8 +194,6 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
   const inputStyles =
     "w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-3 pr-10 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-shadow";
 
-  // --- CHANGE 2: The entire return statement is now wrapped in ModalLayout ---
-  // The old manual layout (backdrop, panel, title, close button) has been removed.
   return (
     <ModalLayout
       isOpen={isOpen}
@@ -245,6 +254,21 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
                 onChange={handleChange}
                 className={`${inputStyles} !pr-3`}
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">
+                Status (Auto)
+              </label>
+              <select
+                name="status"
+                value={formData.status || ""}
+                disabled
+                className={`${inputStyles} !pr-3 disabled:opacity-70 disabled:cursor-not-allowed`}
+              >
+                <option>In Stock</option>
+                <option>Low Stock</option>
+                <option>Out of Stock</option>
+              </select>
             </div>
           </div>
 
@@ -383,18 +407,37 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Status (Auto)
+                GST Rate (%)
               </label>
-              <select
-                name="status"
-                value={formData.status || ""}
-                disabled
-                className={`${inputStyles} !pr-3 disabled:opacity-70 disabled:cursor-not-allowed`}
-              >
-                <option>In Stock</option>
-                <option>Low Stock</option>
-                <option>Out of Stock</option>
-              </select>
+              <div className="relative">
+                <input
+                  type="number"
+                  name="gst_rate"
+                  value={formData.gst_rate ?? ""}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g., 18"
+                  className={`${inputStyles} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange("gst_rate", -1)}
+                    disabled={Number(formData.gst_rate) <= 0}
+                    className="px-2 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStepChange("gst_rate", 1)}
+                    className="px-2 text-zinc-400 hover:text-white"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

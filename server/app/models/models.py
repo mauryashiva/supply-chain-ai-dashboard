@@ -77,6 +77,9 @@ class Product(Base):
     reorder_level = Column(Integer, default=10, nullable=True)
     cost_price = Column(Float, nullable=True)
     selling_price = Column(Float, nullable=True)
+    # --- NEW COLUMN: For GST Rate ---
+    gst_rate = Column(Float, nullable=True, default=0.0) # e.g., 18.0 for 18%
+    
     last_restocked = Column(DateTime, nullable=True)
 
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")

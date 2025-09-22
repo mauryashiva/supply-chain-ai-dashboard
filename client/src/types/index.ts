@@ -128,6 +128,7 @@ export interface Product {
   reorder_level?: number;
   cost_price?: number;
   selling_price?: number;
+  gst_rate?: number; // --- ADDED ---
   last_restocked?: string;
   images?: MediaItem[];
 }
@@ -143,6 +144,7 @@ export interface ProductCreate {
   reorder_level?: number;
   cost_price?: number;
   selling_price?: number;
+  gst_rate?: number; // --- ADDED ---
   last_restocked?: string;
   images?: MediaItem[];
 }
@@ -158,6 +160,7 @@ export interface ProductUpdate {
   reorder_level?: number;
   cost_price?: number;
   selling_price?: number;
+  gst_rate?: number; // --- ADDED ---
   last_restocked?: string;
   images?: MediaItem[];
 }
