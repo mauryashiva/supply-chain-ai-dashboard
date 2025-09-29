@@ -2,13 +2,13 @@ import React from "react";
 import {
   Package,
   IndianRupee,
-  Calendar,
   User,
   Truck,
   Anchor,
   Clock,
+  Tag,
+  Receipt,
 } from "lucide-react";
-// REMOVED: The dayjs import is no longer needed.
 import { PaymentStatusBadge } from "./OrderComponents";
 import type { Order } from "@/types";
 import { ModalLayout } from "@/layouts/ModalLayout";
@@ -18,6 +18,13 @@ interface OrderDetailsModalProps {
   onClose: () => void;
   order: Order | null;
 }
+
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
 
 export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   isOpen,
@@ -52,7 +59,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
     >
       {order && (
         <div className="flex flex-col gap-6 -mt-2">
-          {/* --- Main Details Section (No changes here) --- */}
+          {/* --- Main Details Section --- */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
             <DetailItem
               icon={User}
@@ -80,14 +87,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               }
             />
             <DetailItem
-              icon={Calendar}
-              label="Amount"
-              value={new Intl.NumberFormat("en-IN", {
-                style: "currency",
-                currency: "INR",
-              }).format(order.amount)}
-            />
-            <DetailItem
               icon={Anchor}
               label="Shipping Provider"
               value={order.shipping_provider}
@@ -104,9 +103,75 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                 order.vehicle_id ? `Vehicle #${order.vehicle_id}` : "Unassigned"
               }
             />
+
+            {/* --- REPLACED Financial Summary block --- */}
+            <div className="flex flex-col gap-1 md:col-span-2 border-t border-zinc-800 pt-6">
+              <dt className="text-sm font-medium text-zinc-400 flex items-center gap-2">
+                <Receipt size={14} /> Financial Summary
+              </dt>
+              <dd className="text-base text-white font-semibold">
+                <dl className="space-y-2 text-sm mt-2 p-4 bg-zinc-800/50 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <dt className="text-zinc-400">Subtotal</dt>
+                    <dd className="font-mono">
+                      {formatCurrency(order.subtotal)}
+                    </dd>
+                  </div>
+
+                  {/* CHANGED: Added fallback '(order.discount_value || 0)' */}
+                  {(order.discount_value || 0) > 0 && (
+                    <div className="flex justify-between items-center text-red-400">
+                      <dt className="flex items-center gap-2">
+                        <Tag size={14} />
+                        Discount
+                        <span className="text-xs text-red-500">
+                          (
+                          {order.discount_type === "percentage"
+                            ? `${order.discount_value || 0}%` // CHANGED: Added fallback
+                            : "Fixed"}
+                          )
+                        </span>
+                      </dt>
+                      <dd className="font-mono">
+                        -
+                        {formatCurrency(
+                          order.discount_type === "percentage"
+                            ? (order.subtotal * (order.discount_value || 0)) /
+                                100 // CHANGED: Added fallback
+                            : order.discount_value || 0 // CHANGED: Added fallback
+                        )}
+                      </dd>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center">
+                    <dt className="text-zinc-400">Total GST</dt>
+                    <dd className="font-mono">
+                      +{formatCurrency(order.total_gst)}
+                    </dd>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <dt className="text-zinc-400">Shipping</dt>
+                    {/* CHANGED: Added fallback '(order.shipping_charges || 0)' */}
+                    <dd className="font-mono">
+                      +{formatCurrency(order.shipping_charges || 0)}
+                    </dd>
+                  </div>
+
+                  <div className="border-t border-zinc-700 my-2"></div>
+                  <div className="flex justify-between items-center text-lg font-bold">
+                    <dt>Total Amount</dt>
+                    <dd className="font-mono text-cyan-400">
+                      {formatCurrency(order.total_amount)}
+                    </dd>
+                  </div>
+                </dl>
+              </dd>
+            </div>
           </div>
 
-          {/* --- Items Section (No changes here) --- */}
+          {/* --- Items Section (Unchanged) --- */}
           <div className="border-t border-zinc-800 pt-4 flex flex-col gap-2">
             <dt className="text-sm font-medium text-zinc-400">
               Items in this Order ({order.items.length})
@@ -133,11 +198,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             </dd>
           </div>
 
-          {/* --- Footer Section --- */}
+          {/* --- Footer Section (Unchanged) --- */}
           <div className="border-t border-zinc-800 pt-4 text-center">
             <p className="text-xs text-zinc-500 flex items-center justify-center gap-2">
               <Clock size={12} />
-              {/* CHANGED: Removed all formatting. Now it will directly display the standard date string from the backend. */}
               Order Placed On {order.order_date}
             </p>
           </div>

@@ -24,6 +24,7 @@ export type ProductStatus = "In Stock" | "Low Stock" | "Out of Stock";
 export type VehicleStatus = "On Route" | "Idle" | "In-Shop";
 export type UserRole = "admin" | "user";
 export type MediaType = "image" | "video";
+export type DiscountType = "percentage" | "fixed";
 
 // --- Interface Definitions ---
 
@@ -58,6 +59,14 @@ export interface Order {
   customer_name: string;
   customer_email: string;
   shipping_address: string;
+  // --- UPDATED FINANCIAL FIELDS ---
+  subtotal: number;
+  discount_value?: number;
+  discount_type?: DiscountType;
+  total_gst: number;
+  shipping_charges?: number;
+  total_amount: number;
+  // --- END OF UPDATED FIELDS ---
   amount: number;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod;
@@ -73,13 +82,17 @@ export interface OrderCreate {
   customer_name: string;
   customer_email: string;
   shipping_address: string;
-  amount: number;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod;
   status: OrderStatus;
   shipping_provider?: ShippingProvider;
   tracking_id?: string;
   vehicle_id?: number;
+
+  // New financial fields
+  discount_value?: number;
+  discount_type?: DiscountType;
+  shipping_charges?: number;
   items: OrderItemCreate[];
 }
 

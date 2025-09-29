@@ -1,5 +1,5 @@
-import React, { useState, useMemo, type FormEvent } from "react";
-import { PackagePlus, Trash2 } from "lucide-react";
+import React, { useState, useMemo, useEffect, type FormEvent } from "react";
+import { PackagePlus, Trash2, TrendingUp } from "lucide-react";
 import type {
   Order,
   OrderCreate,
@@ -8,11 +8,19 @@ import type {
   ShippingProvider,
   PaymentMethod,
   OrderStatus,
+  DiscountType,
 } from "@/types";
 import { createOrder } from "@/services/api";
-// --- CHANGE 1: Replace 'AddProductModal' with 'QuickAddProductModal' ---
 import { QuickAddProductModal } from "./QuickAddProductModal";
 import { ModalLayout } from "@/layouts/ModalLayout";
+
+// Helper to format currency
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
 
 interface AddOrderModalProps {
   isOpen: boolean;
@@ -22,6 +30,22 @@ interface AddOrderModalProps {
   onProductAdded: (newProduct: Product) => void;
 }
 
+const INITIAL_FORM_STATE = {
+  customer_name: "",
+  customer_email: "",
+  shipping_address: "",
+  payment_status: "Unpaid" as PaymentStatus,
+  payment_method: "COD" as PaymentMethod,
+  status: "Pending" as OrderStatus,
+  shipping_provider: "Self-Delivery" as ShippingProvider,
+  items: [] as { product_id: number; quantity: number }[],
+  tracking_id: "",
+  vehicle_id: "",
+  discount_value: 0,
+  discount_type: "fixed" as DiscountType,
+  shipping_charges: 0,
+};
+
 export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   isOpen,
   onClose,
@@ -29,30 +53,62 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   products,
   onProductAdded,
 }) => {
-  const [formState, setFormState] = useState({
-    customer_name: "",
-    customer_email: "",
-    shipping_address: "",
-    amount: 0,
-    payment_status: "Unpaid" as PaymentStatus,
-    payment_method: "COD" as PaymentMethod,
-    status: "Pending" as OrderStatus,
-    shipping_provider: "Self-Delivery" as ShippingProvider,
-    items: [] as { product_id: number; quantity: number }[],
-    tracking_id: "",
-    vehicle_id: "",
-  });
-
+  const [formState, setFormState] = useState(INITIAL_FORM_STATE);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [itemQuantity, setItemQuantity] = useState<number>(1);
-
-  // --- CHANGE 2: Rename 'isAddProductOpen' to 'isQuickAddOpen' for clarity ---
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-
-  // This state will store the name typed in the search box
   const [typedProductName, setTypedProductName] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormState(INITIAL_FORM_STATE);
+      setError(null);
+    }
+  }, [isOpen]);
+
+  const orderTotals = useMemo(() => {
+    const subtotal = formState.items.reduce((acc, item) => {
+      const product = products.find((p) => p.id === item.product_id);
+      return acc + (product?.selling_price || 0) * item.quantity;
+    }, 0);
+
+    let discountAmount = 0;
+    const discountValue = Number(formState.discount_value) || 0;
+    if (formState.discount_type === "percentage") {
+      discountAmount = subtotal * (discountValue / 100);
+    } else {
+      discountAmount = discountValue;
+    }
+    if (discountAmount > subtotal) discountAmount = subtotal;
+
+    const totalGst = formState.items.reduce((acc, item) => {
+      const product = products.find((p) => p.id === item.product_id);
+      if (!product || !product.selling_price || product.gst_rate === null)
+        return acc;
+
+      const itemTotalPrice = product.selling_price * item.quantity;
+      let itemDiscount = 0;
+      if (subtotal > 0 && discountAmount > 0) {
+        itemDiscount = (itemTotalPrice / subtotal) * discountAmount;
+      }
+      const taxableValue = itemTotalPrice - itemDiscount;
+      const itemGst = taxableValue * ((product.gst_rate || 0) / 100);
+      return acc + itemGst;
+    }, 0);
+
+    const shipping = Number(formState.shipping_charges) || 0;
+    const totalAmount = subtotal - discountAmount + totalGst + shipping;
+
+    return { subtotal, discountAmount, totalGst, shipping, totalAmount };
+  }, [
+    formState.items,
+    formState.discount_value,
+    formState.discount_type,
+    formState.shipping_charges,
+    products,
+  ]);
 
   const availableProducts = useMemo(() => {
     const addedProductIds = formState.items.map((item) => item.product_id);
@@ -65,7 +121,15 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     >
   ) => {
     const { name, value } = e.target;
-    setFormState((prev) => ({ ...prev, [name]: value }));
+    const numberFields = ["discount_value", "shipping_charges", "vehicle_id"];
+    if (numberFields.includes(name)) {
+      setFormState((prev) => ({
+        ...prev,
+        [name]: value === "" ? "" : parseFloat(value) || 0,
+      }));
+    } else {
+      setFormState((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleAddItem = () => {
@@ -140,7 +204,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }));
   };
 
-  // --- CHANGE 3: This function will be called when the '+' button is clicked ---
   const handleOpenQuickAdd = () => {
     const nameInput = document.querySelector(
       'input[name="product-search"]'
@@ -157,17 +220,21 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }
     setLoading(true);
     setError(null);
+
     const payload: OrderCreate = {
       customer_name: formState.customer_name,
       customer_email: formState.customer_email,
       shipping_address: formState.shipping_address,
-      amount: Number(formState.amount),
-      payment_status: formState.payment_status,
       payment_method: formState.payment_method,
+      payment_status: formState.payment_status,
       status: formState.status,
       shipping_provider: formState.shipping_provider,
       tracking_id: formState.tracking_id || undefined,
       vehicle_id: Number(formState.vehicle_id) || undefined,
+      discount_value: Number(formState.discount_value) || undefined,
+      discount_type:
+        formState.discount_value > 0 ? formState.discount_type : undefined,
+      shipping_charges: Number(formState.shipping_charges) || undefined,
       items: formState.items.map((item) => ({
         product_id: Number(item.product_id),
         quantity: Number(item.quantity),
@@ -178,13 +245,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
       onOrderAdded(response.data);
       onClose();
     } catch (err: any) {
-      if (err.response && err.response.data && err.response.data.detail) {
-        const firstError = err.response.data.detail[0];
-        const errorMessage = `Invalid Input: ${firstError.msg} (Field: ${firstError.loc[1]})`;
-        setError(errorMessage);
-      } else {
-        setError("Failed to create order. Please try again.");
-      }
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : "Failed to create order.");
     } finally {
       setLoading(false);
     }
@@ -192,7 +254,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
 
   return (
     <>
-      {/* --- CHANGE 4: The new 'QuickAddProductModal' is rendered here --- */}
       <QuickAddProductModal
         isOpen={isQuickAddOpen}
         onClose={() => setIsQuickAddOpen(false)}
@@ -200,287 +261,355 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
         setSelectedProductId={setSelectedProductId}
         initialProductName={typedProductName}
       />
-
       <ModalLayout
         isOpen={isOpen}
         onClose={onClose}
         title="Add New Order"
-        size="max-w-3xl"
+        size="max-w-4xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          <fieldset className="border border-zinc-700 p-4 rounded-lg">
-            <legend className="px-2 text-sm text-zinc-400">
-              Customer Details
-            </legend>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Customer Name
-                </label>
-                <input
-                  name="customer_name"
-                  value={formState.customer_name}
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Customer Email
-                </label>
-                <input
-                  name="customer_email"
-                  type="email"
-                  value={formState.customer_email}
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <label className="block text-xs text-zinc-400 mb-1">
-                Shipping Address
-              </label>
-              <textarea
-                name="shipping_address"
-                value={formState.shipping_address}
-                onChange={handleChange}
-                required
-                className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                rows={2}
-              ></textarea>
-            </div>
-          </fieldset>
-
-          <fieldset className="border border-zinc-700 p-4 rounded-lg">
-            <legend className="px-2 text-sm text-zinc-400">Order Items</legend>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_100px_auto_auto] gap-2 items-end">
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Search or Add Product
-                </label>
-                <input
-                  list="products-list"
-                  // --- CHANGE 5: Input name changed to allow selection ---
-                  name="product-search"
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  placeholder="Type or select a product..."
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                />
-                <datalist id="products-list">
-                  {availableProducts.map((p) => (
-                    <option
-                      key={p.id}
-                      value={p.id}
-                      disabled={p.stock_quantity === 0}
-                    >
-                      {p.name} -{" "}
-                      {p.stock_quantity > 0
-                        ? `${p.stock_quantity} units`
-                        : "OUT OF STOCK"}{" "}
-                      ({p.status})
-                    </option>
-                  ))}
-                </datalist>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  value={itemQuantity}
-                  onChange={(e) =>
-                    setItemQuantity(parseInt(e.target.value) || 1)
-                  }
-                  min="1"
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                />
-              </div>
-              {/* '+' button now calls the new function */}
-              <button
-                type="button"
-                onClick={handleOpenQuickAdd}
-                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-2 rounded-lg h-10"
-                title="Create a new product from typed name"
-              >
-                +
-              </button>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 self-end h-10"
-              >
-                <PackagePlus size={16} /> Add Item
-              </button>
-            </div>
-            <div className="mt-4 space-y-2 max-h-32 overflow-y-auto pr-2">
-              {formState.items.length > 0 ? (
-                formState.items.map((item) => {
-                  const product = products.find(
-                    (p) => p.id === item.product_id
-                  );
-                  return (
-                    <div
-                      key={item.product_id}
-                      className="flex justify-between items-center bg-zinc-800 p-2 rounded-md text-sm"
-                    >
-                      <span>{product?.name}</span>
-                      <div className="flex items-center gap-4">
-                        <input
-                          type="number"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            handleQuantityChange(
-                              item.product_id,
-                              parseInt(e.target.value) || 1
-                            )
-                          }
-                          className="w-20 bg-zinc-700 border-zinc-600 rounded-md p-1 text-center font-mono"
-                          min="1"
-                          max={product?.stock_quantity}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(item.product_id)}
-                          className="text-red-500 hover:text-red-400"
-                          title="Remove Item"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <fieldset className="border border-zinc-700 p-4 rounded-lg">
+                <legend className="px-2 text-sm text-zinc-400">
+                  Customer Details
+                </legend>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Customer Name
+                    </label>
+                    <input
+                      name="customer_name"
+                      value={formState.customer_name}
+                      onChange={handleChange}
+                      required
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Customer Email
+                    </label>
+                    <input
+                      name="customer_email"
+                      type="email"
+                      value={formState.customer_email}
+                      onChange={handleChange}
+                      required
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-xs text-zinc-400 mb-1">
+                    Shipping Address
+                  </label>
+                  <textarea
+                    name="shipping_address"
+                    value={formState.shipping_address}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    rows={2}
+                  ></textarea>
+                </div>
+              </fieldset>
+              <fieldset className="border border-zinc-700 p-4 rounded-lg">
+                <legend className="px-2 text-sm text-zinc-400">
+                  Order Items
+                </legend>
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_100px_auto_auto] gap-2 items-end">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Search or Add Product
+                    </label>
+                    <input
+                      list="products-list"
+                      name="product-search"
+                      value={selectedProductId}
+                      onChange={(e) => setSelectedProductId(e.target.value)}
+                      placeholder="Type or select a product..."
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                    <datalist id="products-list">
+                      {availableProducts.map((p) => (
+                        <option
+                          key={p.id}
+                          value={p.id}
+                          disabled={p.stock_quantity === 0}
                         >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-center text-zinc-500 text-sm">
-                  No items added yet.
-                </p>
-              )}
+                          {p.name} -{" "}
+                          {p.stock_quantity > 0
+                            ? `${p.stock_quantity} units`
+                            : "OUT OF STOCK"}{" "}
+                          ({p.status})
+                        </option>
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      value={itemQuantity}
+                      onChange={(e) =>
+                        setItemQuantity(parseInt(e.target.value) || 1)
+                      }
+                      min="1"
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenQuickAdd}
+                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-2 rounded-lg h-10"
+                    title="Create a new product from typed name"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 self-end h-10"
+                  >
+                    <PackagePlus size={16} /> Add Item
+                  </button>
+                </div>
+                <div className="mt-4 space-y-2 max-h-32 overflow-y-auto pr-2">
+                  {formState.items.length > 0 ? (
+                    formState.items.map((item) => {
+                      const product = products.find(
+                        (p) => p.id === item.product_id
+                      );
+                      return (
+                        <div
+                          key={item.product_id}
+                          className="flex justify-between items-center bg-zinc-800 p-2 rounded-md text-sm"
+                        >
+                          <span>{product?.name}</span>
+                          <div className="flex items-center gap-4">
+                            <input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) =>
+                                handleQuantityChange(
+                                  item.product_id,
+                                  parseInt(e.target.value) || 1
+                                )
+                              }
+                              className="w-20 bg-zinc-700 border-zinc-600 rounded-md p-1 text-center font-mono"
+                              min="1"
+                              max={product?.stock_quantity}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.product_id)}
+                              className="text-red-500 hover:text-red-400"
+                              title="Remove Item"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-center text-zinc-500 text-sm">
+                      No items added yet.
+                    </p>
+                  )}
+                </div>
+              </fieldset>
             </div>
-          </fieldset>
 
-          <fieldset className="border border-zinc-700 p-4 rounded-lg">
-            <legend className="px-2 text-sm text-zinc-400">
-              Fulfillment & Payment
-            </legend>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Order Status
-                </label>
-                <select
-                  name="status"
-                  value={formState.status}
-                  onChange={handleChange}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Processing">Processing</option>
-                  <option value="Shipped">Shipped</option>
-                  <option value="In Transit">In Transit</option>
-                  <option value="Delivered">Delivered</option>
-                  <option value="Cancelled">Cancelled</option>
-                  <option value="Returned">Returned</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Payment Status
-                </label>
-                <select
-                  name="payment_status"
-                  value={formState.payment_status}
-                  onChange={handleChange}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                >
-                  <option value="Unpaid">Unpaid</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Pending">Pending</option>
-                  <option value="COD">COD</option>
-                  <option value="Refunded">Refunded</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Payment Method
-                </label>
-                <select
-                  name="payment_method"
-                  value={formState.payment_method}
-                  onChange={handleChange}
-                  disabled={formState.payment_status === "COD"}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2 disabled:opacity-50"
-                >
-                  <option value="Credit Card">Credit Card</option>
-                  <option value="Debit Card">Debit Card</option>
-                  <option value="UPI">UPI</option>
-                  <option value="Net Banking">Net Banking</option>
-                  <option value="Wallet">Wallet</option>
-                  <option value="COD">COD</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Shipping Provider
-                </label>
-                <select
-                  name="shipping_provider"
-                  value={formState.shipping_provider}
-                  onChange={handleChange}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                >
-                  <option value="Self-Delivery">Self-Delivery</option>
-                  <option value="BlueDart">BlueDart</option>
-                  <option value="Delhivery">Delhivery</option>
-                  <option value="DTDC">DTDC</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Tracking ID (Optional)
-                </label>
-                <input
-                  name="tracking_id"
-                  value={formState.tracking_id || ""}
-                  onChange={handleChange}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Assigned Vehicle (Optional)
-                </label>
-                <input
-                  name="vehicle_id"
-                  type="number"
-                  value={formState.vehicle_id || ""}
-                  onChange={handleChange}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                />
-              </div>
-              <div className="lg:col-span-2">
-                <label className="block text-xs text-zinc-400 mb-1">
-                  Total Amount (₹)
-                </label>
-                <input
-                  type="number"
-                  name="amount"
-                  value={formState.amount}
-                  onChange={handleChange}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2 font-bold text-lg"
-                />
-              </div>
+            <div className="space-y-4">
+              <fieldset className="border border-zinc-700 p-4 rounded-lg">
+                <legend className="px-2 text-sm text-zinc-400">
+                  Fulfillment & Payment
+                </legend>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Discount Value
+                    </label>
+                    <input
+                      type="number"
+                      name="discount_value"
+                      value={formState.discount_value}
+                      onChange={handleChange}
+                      min="0"
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Discount Type
+                    </label>
+                    <select
+                      name="discount_type"
+                      value={formState.discount_type}
+                      onChange={handleChange}
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    >
+                      <option value="fixed">Fixed (₹)</option>
+                      <option value="percentage">Percentage (%)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Shipping Charges (₹)
+                    </label>
+                    <input
+                      type="number"
+                      name="shipping_charges"
+                      value={formState.shipping_charges}
+                      onChange={handleChange}
+                      min="0"
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Order Status
+                    </label>
+                    <select
+                      name="status"
+                      value={formState.status}
+                      onChange={handleChange}
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="Processing">Processing</option>
+                      <option value="Shipped">Shipped</option>
+                      <option value="In Transit">In Transit</option>
+                      <option value="Delivered">Delivered</option>
+                      <option value="Cancelled">Cancelled</option>
+                      <option value="Returned">Returned</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Payment Status
+                    </label>
+                    <select
+                      name="payment_status"
+                      value={formState.payment_status}
+                      onChange={handleChange}
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    >
+                      <option value="Unpaid">Unpaid</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Pending">Pending</option>
+                      <option value="COD">COD</option>
+                      <option value="Refunded">Refunded</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Payment Method
+                    </label>
+                    <select
+                      name="payment_method"
+                      value={formState.payment_method}
+                      onChange={handleChange}
+                      disabled={formState.payment_status === "COD"}
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2 disabled:opacity-50"
+                    >
+                      <option value="Credit Card">Credit Card</option>
+                      <option value="Debit Card">Debit Card</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Net Banking">Net Banking</option>
+                      <option value="Wallet">Wallet</option>
+                      <option value="COD">COD</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Shipping Provider
+                    </label>
+                    <select
+                      name="shipping_provider"
+                      value={formState.shipping_provider}
+                      onChange={handleChange}
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    >
+                      <option value="Self-Delivery">Self-Delivery</option>
+                      <option value="BlueDart">BlueDart</option>
+                      <option value="Delhivery">Delhivery</option>
+                      <option value="DTDC">DTDC</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Tracking ID
+                    </label>
+                    <input
+                      name="tracking_id"
+                      value={formState.tracking_id}
+                      onChange={handleChange}
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Vehicle ID
+                    </label>
+                    <input
+                      type="number"
+                      name="vehicle_id"
+                      value={formState.vehicle_id}
+                      onChange={handleChange}
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+              </fieldset>
+              <fieldset className="border border-dashed border-zinc-600 p-4 rounded-lg">
+                <legend className="px-2 text-sm text-zinc-400 flex items-center gap-2">
+                  <TrendingUp size={14} /> Order Summary
+                </legend>
+                <dl className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <dt className="text-zinc-400">Subtotal</dt>
+                    <dd className="font-mono">
+                      {formatCurrency(orderTotals.subtotal)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center text-red-400">
+                    <dt>Discount</dt>
+                    <dd className="font-mono">
+                      -{formatCurrency(orderTotals.discountAmount)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <dt className="text-zinc-400">Total GST</dt>
+                    <dd className="font-mono">
+                      +{formatCurrency(orderTotals.totalGst)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <dt className="text-zinc-400">Shipping</dt>
+                    <dd className="font-mono">
+                      +{formatCurrency(orderTotals.shipping)}
+                    </dd>
+                  </div>
+                  <div className="border-t border-zinc-700 my-2"></div>
+                  <div className="flex justify-between items-center text-lg font-bold">
+                    <dt>Total Amount</dt>
+                    <dd className="font-mono text-cyan-400">
+                      {formatCurrency(orderTotals.totalAmount)}
+                    </dd>
+                  </div>
+                </dl>
+              </fieldset>
             </div>
-          </fieldset>
-
+          </div>
           {error && (
             <p className="text-red-400 text-sm mt-2 text-center">{error}</p>
           )}
-
           <div className="mt-6 flex justify-end gap-3">
             <button
               type="button"
@@ -491,7 +620,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || formState.items.length === 0}
               className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50"
             >
               {loading ? "Creating..." : "Create Order"}

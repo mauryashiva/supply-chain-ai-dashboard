@@ -96,7 +96,7 @@ export const OrderTable: React.FC<OrderTableProps> = ({
                   {order.customer_name}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-zinc-300">
-                  {formatCurrency(order.amount)}
+                  {formatCurrency(order.total_amount)}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-sm">
                   <StatusBadge status={order.status} />

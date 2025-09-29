@@ -12,6 +12,11 @@ class UserRole(str, enum.Enum):
     admin = "admin"
     user = "user"
 
+# NEW: Enum for Discount Type
+class DiscountType(str, enum.Enum):
+    percentage = "percentage"
+    fixed = "fixed"
+
 class OrderStatus(str, enum.Enum):
     Pending = "Pending"; Processing = "Processing"; Shipped = "Shipped"; In_Transit = "In Transit"; Delivered = "Delivered"; Cancelled = "Cancelled"; Returned = "Returned"
 
@@ -77,7 +82,6 @@ class Product(Base):
     reorder_level = Column(Integer, default=10, nullable=True)
     cost_price = Column(Float, nullable=True)
     selling_price = Column(Float, nullable=True)
-    # --- NEW COLUMN: For GST Rate ---
     gst_rate = Column(Float, nullable=True, default=0.0) # e.g., 18.0 for 18%
     
     last_restocked = Column(DateTime, nullable=True)
@@ -92,7 +96,16 @@ class Order(Base):
     customer_name = Column(String, index=True)
     customer_email = Column(String, index=True)
     shipping_address = Column(String)
-    amount = Column(Float)
+
+    # --- NEW FINANCIAL FIELDS ADDED ---
+    subtotal = Column(Float) # The total price of items before any discounts or taxes.
+    discount_value = Column(Float, default=0.0) # The value of the discount (e.g., 10 for 10% or 100 for ₹100).
+    discount_type = Column(Enum(DiscountType), nullable=True) # The type of discount ('percentage' or 'fixed').
+    total_gst = Column(Float) # The total calculated GST amount for the order.
+    shipping_charges = Column(Float, default=0.0) # Shipping costs for the order.
+    total_amount = Column(Float) # The final payable amount. (Replaces old 'amount' field).
+    # --- END OF NEW FIELDS ---
+
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.Unpaid)
     payment_method = Column(Enum(PaymentMethod))
     status = Column(Enum(OrderStatus), default=OrderStatus.Pending)
@@ -113,12 +126,8 @@ class Vehicle(Base):
     orders_count = Column(Integer)
     fuel_level = Column(Float)
 
-# --- NEW MODEL: For App Settings ---
 class AppSettings(Base):
     __tablename__ = 'app_settings'
     
-    # The setting_key will be the primary key, e.g., "LOW_STOCK_THRESHOLD"
     setting_key = Column(String, primary_key=True, index=True)
-    
-    # The setting_value will be the value for that key, e.g., "10"
     setting_value = Column(String, nullable=False)

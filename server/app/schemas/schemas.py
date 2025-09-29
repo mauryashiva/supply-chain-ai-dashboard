@@ -6,6 +6,12 @@ from enum import Enum
 # --- Enums ---
 class UserRole(str, Enum):
     admin = "admin"; user = "user"
+
+# NEW: Enum for Discount Type
+class DiscountType(str, Enum):
+    percentage = "percentage"
+    fixed = "fixed"
+
 class OrderStatus(str, Enum):
     Pending = "Pending"; Processing = "Processing"; Shipped = "Shipped"; In_Transit = "In Transit"; Delivered = "Delivered"; Cancelled = "Cancelled"; Returned = "Returned"
 class PaymentStatus(str, Enum):
@@ -19,41 +25,37 @@ class StockStatus(str, Enum):
 class MediaType(str, Enum):
     image = "image"; video = "video"
 
-# --- Product Images/Videos Schemas ---
+# --- Product Schemas (Unchanged) ---
+# ... (All product schemas remain the same)
 class ProductImageResponse(BaseModel):
     id: int; media_url: str; media_type: MediaType
     class Config: from_attributes = True
 class ProductImageCreate(BaseModel):
     media_url: str; media_type: MediaType = MediaType.image
-
-# --- Product Schemas ---
 class ProductBase(BaseModel):
     name: str; sku: str; stock_quantity: int; status: StockStatus
     description: Optional[str] = None; category: Optional[str] = None; supplier: Optional[str] = None
     reorder_level: Optional[int] = None; cost_price: Optional[float] = None
     selling_price: Optional[float] = None
-    # --- UPDATE: Added gst_rate field ---
     gst_rate: Optional[float] = 0.0
     last_restocked: Optional[datetime] = None
-
 class ProductCreate(ProductBase):
     images: List[ProductImageCreate] = []
-
 class ProductUpdate(BaseModel):
     name: Optional[str] = None; stock_quantity: Optional[int] = None; status: Optional[StockStatus] = None
     description: Optional[str] = None; category: Optional[str] = None; supplier: Optional[str] = None
     reorder_level: Optional[int] = None; cost_price: Optional[float] = None
     selling_price: Optional[float] = None
-    # --- UPDATE: Added gst_rate field ---
     gst_rate: Optional[float] = None
     last_restocked: Optional[datetime] = None
     images: Optional[List[ProductImageCreate]] = None
-    
 class Product(ProductBase):
     id: int; images: List[ProductImageResponse] = []
     class Config: from_attributes = True
 
-# --- Order Item Schemas ---
+
+# --- Order Item Schemas (Unchanged) ---
+# ... (Order item schemas remain the same)
 class ItemProductDetail(BaseModel):
     name: str; sku: str
     class Config: from_attributes = True
@@ -61,7 +63,9 @@ class ItemInOrder(BaseModel):
     quantity: int; product: ItemProductDetail
     class Config: from_attributes = True
 
-# --- User & Vehicle Schemas ---
+
+# --- User & Vehicle Schemas (Unchanged) ---
+# ... (User and vehicle schemas remain the same)
 class UserBase(BaseModel):
     name: str; email: str; role: UserRole = UserRole.user
 class UserCreate(UserBase):
@@ -78,38 +82,75 @@ class Vehicle(VehicleBase):
     id: int
     class Config: from_attributes = True
 
+
 # --- Order Schemas ---
 class OrderItemCreate(BaseModel):
     product_id: int; quantity: int
+
+# UPDATED: OrderBase now includes all the new financial fields for response models.
 class OrderBase(BaseModel):
-    customer_name: str; customer_email: str; shipping_address: str; amount: float
-    payment_status: PaymentStatus = PaymentStatus.Unpaid; payment_method: PaymentMethod
-    status: OrderStatus = OrderStatus.Pending; shipping_provider: Optional[ShippingProvider] = None
-    tracking_id: Optional[str] = None; vehicle_id: Optional[int] = None
-class OrderCreate(OrderBase):
+    customer_name: str; customer_email: str; shipping_address: str
+    
+    # --- NEW & UPDATED FINANCIAL FIELDS ---
+    subtotal: float
+    discount_value: Optional[float] = 0.0
+    discount_type: Optional[DiscountType] = None
+    total_gst: float
+    shipping_charges: Optional[float] = 0.0
+    total_amount: float # Replaces 'amount'
+
+    # --- EXISTING FIELDS (UNCHANGED) ---
+    payment_status: PaymentStatus = PaymentStatus.Unpaid
+    payment_method: PaymentMethod
+    status: OrderStatus = OrderStatus.Pending
+    shipping_provider: Optional[ShippingProvider] = None
+    tracking_id: Optional[str] = None
+    vehicle_id: Optional[int] = None
+
+# UPDATED: OrderCreate now includes old optional fields AND new financial fields for the payload.
+class OrderCreate(BaseModel):
+    customer_name: str
+    customer_email: str
+    shipping_address: str
+    payment_method: PaymentMethod
+    
+    # --- EXISTING OPTIONAL FIELDS (PRESERVED) ---
+    payment_status: Optional[PaymentStatus] = None
+    status: Optional[OrderStatus] = None
+    shipping_provider: Optional[ShippingProvider] = None
+    tracking_id: Optional[str] = None
+    vehicle_id: Optional[int] = None
+    
+    # --- NEW MANUALLY ENTERED FINANCIAL FIELDS (ADDED) ---
+    discount_value: Optional[float] = 0.0
+    discount_type: Optional[DiscountType] = None
+    shipping_charges: Optional[float] = 0.0
+    
+    # --- LIST OF ITEMS (UNCHANGED) ---
     items: List[OrderItemCreate]
+    
 class OrderUpdate(BaseModel):
     status: Optional[OrderStatus] = None; payment_status: Optional[PaymentStatus] = None
-    shipping_provider: Optional[ShippingProvider] = None; tracking_id: Optional[str] = None
+    shipping_provider: Optional[ShippingProvider] = None
+    tracking_id: Optional[str] = None
     vehicle_id: Optional[int] = None
     @validator("shipping_provider", pre=True)
     def empty_str_to_none(cls, v):
         if v == "": return None
         return v
+
+# This schema is for API responses and will correctly show all calculated details.
 class Order(OrderBase):
     id: int; order_date: datetime; items: List[ItemInOrder]
     class Config: from_attributes = True
 
-# --- NEW SCHEMAS: For App Settings ---
+# --- App Settings & Analytics Schemas (Unchanged) ---
+# ... (All other schemas remain the same)
 class AppSetting(BaseModel):
-    setting_key: str
-    setting_value: str
-    class Config:
-        from_attributes = True
+    setting_key: str; setting_value: str
+    class Config: from_attributes = True
 class AppSettingsUpdate(BaseModel):
     settings: List[AppSetting]
-
-# --- Analytics Schemas ---
 class KpiCard(BaseModel):
     title: str; value: str; change: str
 class TopProduct(BaseModel):
