@@ -8,8 +8,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { DollarSign, Package, Timer, Truck } from "lucide-react";
-import type { AnalyticsSummary, KpiCard } from "@/types"; // <-- FIX: Using AnalyticsSummary
+import { IndianRupee, Package, Timer, Truck } from "lucide-react";
+import type { AnalyticsSummary, KpiCard } from "@/types";
+
+// CHANGE 1: Yahaan exchange rate set karein
+const USD_TO_INR_RATE = 83.5;
 
 interface KPICardProps {
   title: string;
@@ -36,14 +39,14 @@ const KPICard: React.FC<KPICardProps> = ({
   </div>
 );
 
-// FIX: Map card titles to icons
 const iconMap: { [key: string]: React.ElementType } = {
   "Total Orders": Package,
-  Revenue: DollarSign,
+  Revenue: IndianRupee,
   "On-Time Deliveries": Timer,
   "Pending Orders": Truck,
 };
 
+// NOTE: Ye chart data abhi bhi hardcoded hai. Agar ye bhi USD mein hai, to isko bhi convert karna padega.
 const chartData = [
   { name: "Jan", revenue: 4000 },
   { name: "Feb", revenue: 3000 },
@@ -77,31 +80,42 @@ const DashboardPage: React.FC = () => {
 
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {Array(4)
-            .fill(0)
-            .map((_, index) => (
-              <div
-                key={index}
-                className="bg-zinc-900 rounded-lg shadow-lg p-5 animate-pulse"
-              >
-                <div className="h-4 bg-zinc-800 rounded w-3/4 mb-4"></div>
-                <div className="h-8 bg-zinc-800 rounded w-1/2"></div>
-                <div className="h-3 bg-zinc-800 rounded w-1/2 mt-2"></div>
-              </div>
-            ))}
+          {/* ... Loading state ... */}
         </div>
       ) : summaryData ? (
-        // FIX: Dynamically render cards from API data
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {summaryData.kpi_cards.map((card: KpiCard) => (
-            <KPICard
-              key={card.title}
-              title={card.title}
-              value={card.value}
-              change={card.change}
-              icon={iconMap[card.title] || DollarSign}
-            />
-          ))}
+          {summaryData.kpi_cards.map((card: KpiCard) => {
+            let displayValue = card.value;
+
+            // CHANGE 2: Revenue card ke liye value ko convert aur format karein
+            if (card.title === "Revenue") {
+              // Pehle string se number nikalein (e.g., "$85,620" -> 85620)
+              const numericValue = parseFloat(
+                card.value.replace(/[^0-9.-]+/g, "")
+              );
+
+              // USD se INR mein convert karein
+              const valueInInr = numericValue * USD_TO_INR_RATE;
+
+              // Converted value ko Indian currency format mein display karein
+              displayValue = new Intl.NumberFormat("en-IN", {
+                style: "currency",
+                currency: "INR",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(valueInInr);
+            }
+
+            return (
+              <KPICard
+                key={card.title}
+                title={card.title}
+                value={displayValue} // Yahaan converted value use hogi
+                change={card.change}
+                icon={iconMap[card.title] || IndianRupee}
+              />
+            );
+          })}
         </div>
       ) : (
         <p className="text-red-400">Could not load dashboard data.</p>
@@ -126,7 +140,7 @@ const DashboardPage: React.FC = () => {
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `$${Number(value) / 1000}k`}
+                tickFormatter={(value) => `₹${Number(value) / 1000}k`}
               />
               <Tooltip
                 cursor={{ fill: "#ffffff10" }}
