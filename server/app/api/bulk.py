@@ -34,9 +34,11 @@ def _update_product_status_local(product: models.Product, db: Session):
     else: product.status = models.StockStatus.In_Stock
 
 # --- Response Models ---
+# --- CHANGE 1: Update BulkUploadResponse ---
 class BulkUploadResponse(BaseModel):
     message: str
     products_added: int
+    products_updated: int # Naya field add kiya gaya
     errors: List[str]
 
 class OrderUploadResponse(BaseModel):
@@ -44,25 +46,29 @@ class OrderUploadResponse(BaseModel):
     orders_created: int
     errors: List[str]
 
-# --- Inventory CSV Upload Endpoint (Unchanged) ---
+# --- Inventory CSV Upload Endpoint (UPDATED LOGIC) ---
 @router.post("/inventory/upload-csv", response_model=BulkUploadResponse)
 async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Bulk imports products from a CSV file.
+    If SKU exists, updates the product; otherwise, creates a new one.
     """
-    # ... (Inventory upload code remains unchanged) ...
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a .csv file.")
+
     low_stock_threshold = get_low_stock_threshold(db)
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="The file is empty.")
+
     try:
         file_text = contents.decode('utf-8')
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="Failed to decode file. Please ensure it is UTF-8 encoded.")
+
     file_reader = io.StringIO(file_text)
     csv_reader = csv.DictReader(file_reader)
+    
     expected_headers = [
         "name", "sku", "stock_quantity", "category", "supplier",
         "reorder_level", "cost_price", "selling_price", "gst_rate"
@@ -72,45 +78,116 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             status_code=400,
             detail=f"Invalid CSV headers. Required headers are: {', '.join(expected_headers)}"
         )
-    products_to_add = []
+
+    # --- CHANGE 2: Naye counters aur lists banayein ---
+    products_to_add = []    # Naye products ke liye
+    products_to_update = [] # Update hone wale products ke liye (database objects)
+    update_data_map = {}    # Update data store karne ke liye
     errors = []
     line_number = 1
+    processed_skus = set() # Duplicate SKUs ko file mein hi pakadne ke liye
+
     for row in csv_reader:
         line_number += 1
+        sku = row.get("sku")
+
+        # Basic validation
+        if not sku:
+            errors.append(f"Line {line_number}: Missing SKU.")
+            continue
+        if sku in processed_skus:
+            errors.append(f"Line {line_number}: Duplicate SKU '{sku}' found within the CSV file.")
+            continue
+        processed_skus.add(sku)
+
         try:
             stock = int(row.get("stock_quantity", 0))
-            product_data = schemas.ProductCreate(
-                name=row["name"],
-                sku=row["sku"],
-                stock_quantity=stock,
-                status=get_product_status(stock, low_stock_threshold),
-                category=row.get("category") or None,
-                supplier=row.get("supplier") or None,
-                reorder_level=int(row.get("reorder_level", 10)),
-                cost_price=float(row.get("cost_price", 0.0)),
-                selling_price=float(row.get("selling_price", 0.0)),
-                gst_rate=float(row.get("gst_rate", 0.0)),
-                images=[]
-            )
-            products_to_add.append(models.Product(**product_data.model_dump()))
+            
+            # Data ko validate aur structure karein (Pydantic ka istemal karein)
+            product_data_dict = {
+                "name": row["name"],
+                "sku": sku,
+                "stock_quantity": stock,
+                "status": get_product_status(stock, low_stock_threshold),
+                "category": row.get("category") or None,
+                "supplier": row.get("supplier") or None,
+                "reorder_level": int(row.get("reorder_level", 10)),
+                "cost_price": float(row.get("cost_price", 0.0)),
+                "selling_price": float(row.get("selling_price", 0.0)),
+                "gst_rate": float(row.get("gst_rate", 0.0)),
+                "images": [] # Images CSV se handle nahi hongi
+            }
+            # Pydantic se validate karein taki data types sahi ho
+            validated_data = schemas.ProductCreate(**product_data_dict)
+
+            # --- CHANGE 3: Check karein ki product exist karta hai ya nahi ---
+            db_product = db.query(models.Product).filter(models.Product.sku == sku).first()
+
+            if db_product:
+                # Agar exist karta hai: Update list mein add karein
+                products_to_update.append(db_product)
+                update_data_map[sku] = validated_data # Store validated data for update
+            else:
+                # Agar exist nahi karta: Add list mein add karein
+                products_to_add.append(models.Product(**validated_data.model_dump()))
+
         except ValueError as e:
-            errors.append(f"Line {line_number}: Invalid number format. {e}")
-        except Exception as e:
-            errors.append(f"Line {line_number}: Error processing row. {e}")
-    if not products_to_add and not errors:
-        raise HTTPException(status_code=400, detail="No valid data found in the file.")
+            errors.append(f"Line {line_number} (SKU: {sku}): Invalid number format. {e}")
+        except Exception as e: # Catches Pydantic validation errors too
+            errors.append(f"Line {line_number} (SKU: {sku}): Error processing row. {e}")
+
+    if not products_to_add and not products_to_update and not errors:
+        raise HTTPException(status_code=400, detail="No valid data found to add or update.")
+
+    added_count = 0
+    updated_count = 0
+
     try:
-        db.bulk_save_objects(products_to_add)
+        # --- CHANGE 4: Update aur Add operations ko handle karein ---
+        
+        # Products ko update karein
+        if products_to_update:
+            for product in products_to_update:
+                update_data = update_data_map[product.sku]
+                # Attributes ko update karein
+                product.name = update_data.name
+                product.stock_quantity = update_data.stock_quantity
+                product.status = update_data.status # Status bhi update karein
+                product.category = update_data.category
+                product.supplier = update_data.supplier
+                product.reorder_level = update_data.reorder_level
+                product.cost_price = update_data.cost_price
+                product.selling_price = update_data.selling_price
+                product.gst_rate = update_data.gst_rate
+                # Note: Images are not updated via CSV
+            updated_count = len(products_to_update)
+
+        # Naye products add karein
+        if products_to_add:
+            db.bulk_save_objects(products_to_add)
+            added_count = len(products_to_add)
+            
         db.commit()
+
     except Exception as e:
         db.rollback()
+        # Ab error message mein dono counts 0 rakhein
         errors.append(f"Database error: {e}")
-        raise HTTPException(status_code=500, detail={"message": "Failed to save products.", "products_added": 0, "errors": errors})
+        raise HTTPException(status_code=500, detail={
+            "message": "Failed to save products.", 
+            "products_added": 0, 
+            "products_updated": 0, 
+            "errors": errors
+        })
+
+    # --- CHANGE 5: Updated response return karein ---
     return BulkUploadResponse(
         message="CSV processed successfully.",
-        products_added=len(products_to_add),
+        products_added=added_count,
+        products_updated=updated_count, # Naya count
         errors=errors
     )
+
 
 # --- Orders CSV Upload (Unchanged) ---
 @router.post("/orders/upload-csv", response_model=OrderUploadResponse)
@@ -119,7 +196,6 @@ async def upload_orders_csv(file: UploadFile = File(...), db: Session = Depends(
     Bulk imports multiple orders from a CSV file.
     Uses professional calculation logic.
     """
-    # ... (Order upload code remains unchanged) ...
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a .csv file.")
     contents = await file.read()
@@ -267,7 +343,6 @@ async def export_inventory_csv(db: Session = Depends(get_db)):
     """
     Exports all inventory products to a CSV file.
     """
-    # ... (Inventory export code remains unchanged) ...
     output = io.StringIO()
     headers = [
         "name", "sku", "stock_quantity", "category", "supplier",
@@ -302,7 +377,6 @@ async def export_orders_csv(db: Session = Depends(get_db)):
     """
     Exports all orders and their items to a CSV file.
     """
-    # ... (Order export code remains unchanged, including the fix for 'created_at') ...
     output = io.StringIO()
     headers = [
         "order_group_id", "customer_name", "customer_email", "shipping_address",
@@ -328,6 +402,7 @@ async def export_orders_csv(db: Session = Depends(get_db)):
                 "discount_type": order.discount_type.value if order.discount_type else None,
                 "discount_value": order.discount_value,
                 "shipping_charges": order.shipping_charges,
+
                 "subtotal": order.subtotal,
                 "total_gst": order.total_gst,
                 "total_amount": order.total_amount,
@@ -361,7 +436,7 @@ async def export_orders_csv(db: Session = Depends(get_db)):
     )
 
 
-# --- !! NEW !! TEMPLATE DOWNLOAD ENDPOINTS ---
+# --- Template Download Endpoints (Unchanged) ---
 
 @router.get("/inventory/template")
 async def download_inventory_template():
