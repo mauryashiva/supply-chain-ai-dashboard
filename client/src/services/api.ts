@@ -73,14 +73,12 @@ export const uploadInventoryCSV = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  // --- CHANGE 1: Update response type expectation ---
-  // The backend now returns BulkUploadResponse which might include error_report_id
   return apiClient.post<{
     message: string;
     products_added: number;
     products_updated: number;
     errors: string[];
-    error_report_id?: string; // Expect this optional field
+    error_report_id?: string;
   }>("/bulk/inventory/upload-csv", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
@@ -92,12 +90,12 @@ export const uploadOrdersCSV = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  // Assuming Order upload might also get error report feature later
+  // --- Ensure this expects error_report_id too ---
   return apiClient.post<{
     message: string;
     orders_created: number;
     errors: string[];
-    error_report_id?: string;
+    error_report_id?: string; // Expect this optional field
   }>("/bulk/orders/upload-csv", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
@@ -129,7 +127,7 @@ export const downloadOrderTemplate = () => {
   });
 };
 
-// --- !! NEW !! ERROR FILE DOWNLOAD FUNCTION ---
+// --- ERROR FILE DOWNLOAD FUNCTIONS ---
 
 /**
  * Downloads the CSV file containing rows that failed during inventory import.
@@ -137,6 +135,17 @@ export const downloadOrderTemplate = () => {
  */
 export const downloadInventoryErrorFile = (reportId: string) => {
   return apiClient.get(`/bulk/inventory/download-errors/${reportId}`, {
-    responseType: "blob", // Important for file download
+    responseType: "blob",
+  });
+};
+
+/**
+ * Downloads the CSV file containing rows that failed during order import.
+ * @param reportId The unique ID of the error report.
+ */
+export const downloadOrderErrorFile = (reportId: string) => {
+  return apiClient.get(`/bulk/orders/download-errors/${reportId}`, {
+    // Updated URL
+    responseType: "blob",
   });
 };

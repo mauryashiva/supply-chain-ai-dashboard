@@ -7,7 +7,7 @@ import {
   AlertCircle,
   FileDown,
   Download,
-  FileWarning, // --- CHANGE 1: Naya 'FileWarning' icon import kiya gaya ---
+  FileWarning,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -17,12 +17,13 @@ import {
   exportOrdersCSV,
   downloadInventoryTemplate,
   downloadOrderTemplate,
-  // --- CHANGE 2: Naya error download function import kiya gaya ---
   downloadInventoryErrorFile,
+  // --- CHANGE 1: Import order error download function ---
+  downloadOrderErrorFile,
 } from "@/services/api";
 import { saveAs } from "file-saver";
 
-// --- Dropzone Component (Jaisa pehle tha) ---
+// --- Dropzone Component (No Change) ---
 interface DropzoneProps {
   onDrop: (files: File[]) => void;
   loading: boolean;
@@ -67,139 +68,165 @@ const FileDropzone: React.FC<DropzoneProps> = ({ onDrop, loading, title }) => {
 
 // --- Main Import Page Component ---
 const ImportPage: React.FC = () => {
-  // Import states
+  // Inventory states
   const [invLoading, setInvLoading] = useState(false);
   const [invError, setInvError] = useState<string | null>(null);
   const [invSuccess, setInvSuccess] = useState<string | null>(null);
-  // --- CHANGE 3: State to store the error report ID ---
   const [invErrorReportId, setInvErrorReportId] = useState<string | null>(null);
+  const [invExportLoading, setInvExportLoading] = useState(false);
+  const [invTemplateLoading, setInvTemplateLoading] = useState(false);
+  const [invErrorFileLoading, setInvErrorFileLoading] = useState(false);
 
+  // Order states
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
-  // Add orderErrorReportId later if needed for orders
-
-  // Export states
-  const [invExportLoading, setInvExportLoading] = useState(false);
+  // --- CHANGE 2: Add state for order error report ID ---
+  const [orderErrorReportId, setOrderErrorReportId] = useState<string | null>(
+    null
+  );
   const [orderExportLoading, setOrderExportLoading] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null); // Shared error for export/template/error file download
-
-  // Template states
-  const [invTemplateLoading, setInvTemplateLoading] = useState(false);
   const [orderTemplateLoading, setOrderTemplateLoading] = useState(false);
+  // --- CHANGE 3: Add state for order error file loading ---
+  const [orderErrorFileLoading, setOrderErrorFileLoading] = useState(false);
 
-  // --- CHANGE 4: State for error file download loading ---
-  const [invErrorFileLoading, setInvErrorFileLoading] = useState(false);
+  // Shared export/download error state
+  const [exportError, setExportError] = useState<string | null>(null);
 
-  // Inventory Import Handler
+  // Inventory Import Handler (No Change)
   const onInventoryDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     const file = acceptedFiles[0];
     setInvLoading(true);
     setInvError(null);
     setInvSuccess(null);
-    setExportError(null); // Clear previous export/download errors
-    // --- CHANGE 5: Reset error report ID ---
+    setExportError(null);
     setInvErrorReportId(null);
 
     try {
       const response = await uploadInventoryCSV(file);
-      const data = response.data; // Backend sends BulkUploadResponse structure
+      const data = response.data;
       const added = data.products_added || 0;
-      const updated = data.products_updated || 0; // Get updated count
+      const updated = data.products_updated || 0;
       const errors = data.errors || [];
-
-      // Use the message directly from backend if available
       let successMessage =
         data.message || `${added} products added, ${updated} products updated.`;
 
       if (errors.length > 0) {
-        // Show only the count here, user can download the file for details
         setInvError(`${errors.length} row(s) had errors. See details below.`);
-        // --- CHANGE 6: Store error report ID if available ---
         if (data.error_report_id) {
           setInvErrorReportId(data.error_report_id);
         }
       }
-      // Set success message even if there were errors
-      // Clean up the success message to not duplicate error info
       setInvSuccess(
         successMessage.replace(` ${errors.length} row(s) had errors.`, "")
       );
     } catch (err: any) {
-      // Handle HTTP errors (4xx, 5xx)
       let errorMessage = "File upload failed. Please try again.";
-      const errorData = err.response?.data; // Axios wraps HTTP error details here
-      const detail = errorData?.detail; // FastAPI often uses 'detail'
-
-      // Check if backend returned our structured error response on HTTP 500
+      const errorData = err.response?.data;
+      const detail = errorData?.detail;
       if (errorData && errorData.message && Array.isArray(errorData.errors)) {
-        errorMessage =
-          errorData.message || "An unknown error occurred during upload.";
+        errorMessage = errorData.message || "An unknown error occurred.";
         if (errorData.errors.length > 0) {
           errorMessage += ` ${errorData.errors.length} error(s) recorded.`;
-          // --- CHANGE 7: Try to get report ID even from error response ---
           if (errorData.error_report_id) {
             setInvErrorReportId(errorData.error_report_id);
           }
         }
       } else if (typeof detail === "string") {
-        // Handle simple string errors from HTTPException(400, detail="...")
         errorMessage = detail;
       } else if (
         typeof detail === "object" &&
         detail !== null &&
         detail.message
       ) {
-        // Handle cases where detail might be an object (less common now)
         errorMessage = detail.message;
       } else if (err.message) {
-        // Handle network errors etc.
         errorMessage = err.message;
       }
       setInvError(errorMessage);
-      // Clear success message on error
       setInvSuccess(null);
     } finally {
       setInvLoading(false);
     }
   }, []);
 
-  // Order Import Handler (No change for error file download yet)
+  // Order Import Handler (Updated)
   const onOrdersDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     const file = acceptedFiles[0];
     setOrderLoading(true);
     setOrderError(null);
     setOrderSuccess(null);
+    setExportError(null);
+    // --- CHANGE 4: Reset order error report ID ---
+    setOrderErrorReportId(null);
 
     try {
       const response = await uploadOrdersCSV(file);
-      const added = response.data.orders_created || 0;
-      const errors = response.data.errors || [];
+      const data = response.data; // Expect OrderUploadResponse
+      const added = data.orders_created || 0;
+      const errors = data.errors || [];
 
-      let successMessage = `${added} orders were successfully created.`;
+      let successMessage = data.message || `${added} orders created.`;
+
       if (errors.length > 0) {
-        successMessage += ` ${errors.length} orders had errors.`;
-        setOrderError(`First error: ${errors[0]}`);
+        setOrderError(
+          `${errors.length} row(s) / order(s) had errors. See details below.`
+        );
+        // --- CHANGE 5: Store order error report ID ---
+        if (data.error_report_id) {
+          setOrderErrorReportId(data.error_report_id);
+        }
       }
-      setOrderSuccess(successMessage);
+      // Clean up success message and set it
+      setOrderSuccess(
+        successMessage
+          .replace(
+            ` ${errors.length} row(s) corresponding to failed orders had errors.`,
+            ""
+          )
+          .replace(
+            ` ${errors.length} row(s) had errors. No orders were created.`,
+            ""
+          )
+      );
     } catch (err: any) {
-      let errorMessage = "File upload failed. Please try again.";
-      const detail = err.response?.data?.detail;
-      if (typeof detail === "string") errorMessage = detail;
-      else if (typeof detail === "object" && detail !== null) {
-        errorMessage = detail.message || "An unknown error occurred.";
-        if (detail.errors && detail.errors.length > 0)
-          errorMessage += ` (Details: ${detail.errors[0]})`;
+      let errorMessage = "Order file upload failed. Please try again.";
+      const errorData = err.response?.data;
+      const detail = errorData?.detail;
+
+      // Check for structured error response from backend on HTTP error
+      if (errorData && errorData.message && Array.isArray(errorData.errors)) {
+        errorMessage =
+          errorData.message || "An unknown error occurred during order upload.";
+        if (errorData.errors.length > 0) {
+          errorMessage += ` ${errorData.errors.length} error(s) recorded.`;
+          // --- CHANGE 6: Try to get order report ID from error response ---
+          if (errorData.error_report_id) {
+            setOrderErrorReportId(errorData.error_report_id);
+          }
+        }
+      } else if (typeof detail === "string") {
+        errorMessage = detail;
+      } else if (
+        typeof detail === "object" &&
+        detail !== null &&
+        detail.message
+      ) {
+        errorMessage = detail.message;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
+
       setOrderError(errorMessage);
+      setOrderSuccess(null); // Clear success on error
     } finally {
       setOrderLoading(false);
     }
   }, []);
 
-  // Export Handlers
+  // Export Handlers (No Change)
   const handleInventoryExport = useCallback(async () => {
     setInvExportLoading(true);
     setExportError(null);
@@ -228,7 +255,7 @@ const ImportPage: React.FC = () => {
     }
   }, []);
 
-  // Template Handlers
+  // Template Handlers (No Change)
   const handleInventoryTemplateDownload = useCallback(async () => {
     setInvTemplateLoading(true);
     setExportError(null); // Clear previous errors
@@ -257,27 +284,48 @@ const ImportPage: React.FC = () => {
     }
   }, []);
 
-  // --- CHANGE 8: Handler to download the error file ---
-  const handleDownloadErrorFile = useCallback(async () => {
+  // Inventory Error File Handler (No Change)
+  const handleDownloadInventoryErrorFile = useCallback(async () => {
     if (!invErrorReportId) return;
-
     setInvErrorFileLoading(true);
-    setExportError(null); // Clear previous export/template errors
+    setExportError(null);
     try {
       const response = await downloadInventoryErrorFile(invErrorReportId);
       saveAs(response.data, `inventory_errors_${invErrorReportId}.csv`);
     } catch (err: any) {
-      console.error("Error downloading error file:", err);
-      let errorMsg = "Failed to download error file.";
+      console.error("Error downloading inventory error file:", err);
+      let errorMsg = "Failed to download inventory error file.";
       if (err.response?.status === 404) {
-        errorMsg = "Error report not found or expired. Please upload again.";
-        setInvErrorReportId(null); // Clear the invalid ID
+        errorMsg = "Inventory error report not found or expired.";
+        setInvErrorReportId(null);
       }
       setExportError(errorMsg);
     } finally {
       setInvErrorFileLoading(false);
     }
   }, [invErrorReportId]);
+
+  // --- CHANGE 7: Handler to download the order error file ---
+  const handleDownloadOrderErrorFile = useCallback(async () => {
+    if (!orderErrorReportId) return;
+
+    setOrderErrorFileLoading(true);
+    setExportError(null);
+    try {
+      const response = await downloadOrderErrorFile(orderErrorReportId);
+      saveAs(response.data, `order_errors_${orderErrorReportId}.csv`);
+    } catch (err: any) {
+      console.error("Error downloading order error file:", err);
+      let errorMsg = "Failed to download order error file.";
+      if (err.response?.status === 404) {
+        errorMsg = "Order error report not found or expired.";
+        setOrderErrorReportId(null); // Clear invalid ID
+      }
+      setExportError(errorMsg);
+    } finally {
+      setOrderErrorFileLoading(false);
+    }
+  }, [orderErrorReportId]);
 
   return (
     <div className="bg-zinc-900 rounded-lg shadow-lg p-6">
@@ -348,10 +396,10 @@ const ImportPage: React.FC = () => {
               <div className="flex items-center gap-3">
                 <AlertCircle size={16} /> <p className="text-sm">{invError}</p>
               </div>
-              {/* --- CHANGE 9: Conditional Download Error Button --- */}
+              {/* Conditional Download Error Button */}
               {invErrorReportId && (
                 <button
-                  onClick={handleDownloadErrorFile}
+                  onClick={handleDownloadInventoryErrorFile}
                   disabled={invErrorFileLoading}
                   className="flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-xs bg-red-900/50 text-red-200 rounded-md hover:bg-red-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
@@ -410,9 +458,29 @@ const ImportPage: React.FC = () => {
               <p className="text-sm">{orderSuccess}</p>
             </div>
           )}
+
+          {/* --- CHANGE 8: Add conditional download button for orders --- */}
           {orderError && (
-            <div className="mt-4 p-3 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 flex items-center gap-3">
-              <AlertCircle size={16} /> <p className="text-sm">{orderError}</p>
+            <div className="mt-4 p-3 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <AlertCircle size={16} />{" "}
+                <p className="text-sm">{orderError}</p>
+              </div>
+              {/* Show button if orderErrorReportId exists */}
+              {orderErrorReportId && (
+                <button
+                  onClick={handleDownloadOrderErrorFile}
+                  disabled={orderErrorFileLoading}
+                  className="flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-xs bg-red-900/50 text-red-200 rounded-md hover:bg-red-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {orderErrorFileLoading ? (
+                    <Loader className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileWarning className="h-4 w-4" />
+                  )}
+                  Download Error File
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -1,11 +1,11 @@
 import csv
 import io
-import uuid # --- CHANGE 1: Import uuid ---
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from typing import List, Dict, Optional
-from pydantic import BaseModel # --- Typo 'pantic' ko 'pydantic' se fix kiya gaya ---
+from typing import List, Dict, Optional, Any # Added Any
+from pydantic import BaseModel
 
 from ..database import get_db
 from ..schemas import schemas
@@ -14,8 +14,7 @@ from ..models import models
 router = APIRouter()
 
 # --- Temporary In-Memory Storage for Error Reports ---
-# WARNING: This data will be lost on server restart. Use Redis or DB for persistence.
-error_reports: Dict[str, List[Dict]] = {}
+error_reports: Dict[str, Dict[str, Any]] = {} # Changed type hint
 
 # --- Helper Functions (Inventory) ---
 def get_low_stock_threshold(db: Session) -> int:
@@ -46,22 +45,21 @@ class BulkUploadResponse(BaseModel):
     message: str
     products_added: int
     products_updated: int
-    errors: List[str] # Keep this for simple error messages
-    # --- CHANGE 2: Add optional field for error report ID ---
+    errors: List[str]
     error_report_id: Optional[str] = None
 
 class OrderUploadResponse(BaseModel):
     message: str
     orders_created: int
     errors: List[str]
-    # We can add error report functionality here later if needed
+    # --- CHANGE 1: Add error_report_id field ---
+    error_report_id: Optional[str] = None
 
-# --- Inventory CSV Upload Endpoint (DOWNLOAD ERRORS LOGIC) ---
+# --- Inventory CSV Upload Endpoint (Code from previous version) ---
 @router.post("/inventory/upload-csv", response_model=BulkUploadResponse)
 async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Bulk imports/updates products. If errors occur, stores failed rows
-    and returns an ID to download them.
+    Imports/updates products, provides error report ID.
     """
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a .csv file.")
@@ -77,7 +75,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
         raise HTTPException(status_code=400, detail="Failed to decode file. Please ensure it is UTF-8 encoded.")
 
     file_reader = io.StringIO(file_text)
-    # --- CHANGE 3: Store original fieldnames ---
     csv_reader = csv.DictReader(file_reader)
     original_fieldnames = csv_reader.fieldnames or []
 
@@ -94,14 +91,12 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
     products_to_add = []
     products_to_update = []
     update_data_map = {}
-    # --- CHANGE 4: Store failed rows with original data + error ---
     failed_rows = []
     line_number = 1 # Header is line 1
     processed_skus = set()
     added_skus = []
     updated_skus = []
 
-    # --- CHANGE 5: Reset file reader to read rows again ---
     file_reader.seek(0)
     csv_reader = csv.DictReader(file_reader) # Recreate reader
 
@@ -118,7 +113,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             processed_skus.add(sku)
 
         if error_reason:
-            # --- CHANGE 6: Store the original row and the error ---
             row_copy = dict(row) # Make a copy
             row_copy["error_reason"] = error_reason
             failed_rows.append(row_copy)
@@ -153,14 +147,11 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             error_reason = f"Data validation error: {e}"
 
         if error_reason:
-            # --- CHANGE 7: Store row and error if validation fails ---
             row_copy = dict(row)
             row_copy["error_reason"] = error_reason
             failed_rows.append(row_copy)
 
-    # Convert failed row errors to simple strings for the 'errors' list in response
     error_strings = [f"Line {i+2} (SKU: {row.get('sku', 'N/A')}): {row['error_reason']}" for i, row in enumerate(failed_rows)]
-
 
     if not products_to_add and not products_to_update and not failed_rows:
         raise HTTPException(status_code=400, detail="No valid data found to add or update.")
@@ -170,7 +161,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
     error_report_id = None
 
     try:
-        # Perform updates
         if products_to_update:
             for product in products_to_update:
                 update_data = update_data_map[product.sku]
@@ -185,7 +175,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
                 product.gst_rate = update_data.gst_rate
             updated_count = len(products_to_update)
 
-        # Perform adds
         if products_to_add:
             db.bulk_save_objects(products_to_add)
             added_count = len(products_to_add)
@@ -194,11 +183,9 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
 
     except Exception as e:
         db.rollback()
-        # Add DB error to the simple list
         db_error_message = f"Database error during commit: {e}"
         error_strings.append(db_error_message)
         
-        # --- CHANGE 8: Generate error report ID even on DB failure if there were initial errors ---
         if failed_rows:
             error_report_id = str(uuid.uuid4())
             error_reports[error_report_id] = {"headers": original_fieldnames, "rows": failed_rows}
@@ -211,13 +198,10 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             error_report_id=error_report_id
         )
 
-    # --- CHANGE 9: Generate error report ID if processing finished with errors ---
     if failed_rows:
         error_report_id = str(uuid.uuid4())
-        # Store headers too
         error_reports[error_report_id] = {"headers": original_fieldnames, "rows": failed_rows} 
 
-    # Construct success message
     message_parts = []
     if added_count > 0: message_parts.append(f"{added_count} product(s) added.")
     if updated_count > 0: message_parts.append(f"{updated_count} product(s) updated.")
@@ -232,165 +216,273 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
     if failed_rows:
         final_message += f" {len(failed_rows)} row(s) had errors."
 
-
     return BulkUploadResponse(
         message=final_message,
         products_added=added_count,
         products_updated=updated_count,
-        errors=error_strings, # Still return simple error strings
-        error_report_id=error_report_id # Return the ID if errors occurred
+        errors=error_strings,
+        error_report_id=error_report_id
     )
 
-
-# --- Orders CSV Upload (Full code from previous version) ---
+# --- Orders CSV Upload (DOWNLOAD ERRORS LOGIC ADDED) ---
 @router.post("/orders/upload-csv", response_model=OrderUploadResponse)
 async def upload_orders_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Bulk imports multiple orders from a CSV file.
-    Uses professional calculation logic.
+    Bulk imports orders. If errors occur, stores failed rows
+    and returns an ID to download them.
     """
     if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Invalid file type. Please upload a .csv file.")
+        raise HTTPException(status_code=400, detail="Invalid file type.")
+
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="The file is empty.")
+
     try:
         file_text = contents.decode('utf-8')
     except UnicodeDecodeError:
-        raise HTTPException(status_code=400, detail="Failed to decode file. Please ensure it is UTF-8 encoded.")
-    file_reader = io.StringIO(file_text)
-    csv_reader = csv.DictReader(file_reader)
+        raise HTTPException(status_code=400, detail="Failed to decode file (must be UTF-8).")
+
+    file_reader_initial = io.StringIO(file_text)
+    csv_reader_initial = csv.DictReader(file_reader_initial)
+    # --- CHANGE 2: Store original fieldnames ---
+    original_fieldnames = csv_reader_initial.fieldnames or []
+
     expected_headers = [
         "order_group_id", "customer_name", "customer_email", "shipping_address",
         "payment_method", "item_sku", "item_quantity",
         "discount_type", "discount_value", "shipping_charges"
     ]
-    if not all(header in (csv_reader.fieldnames or []) for header in expected_headers):
+    if not all(header in original_fieldnames for header in expected_headers):
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid CSV headers. Required headers are: {', '.join(expected_headers)}"
+            detail=f"Invalid CSV headers. Required: {', '.join(expected_headers)}"
         )
-    orders_data = {}
-    errors = []
+
+    orders_data: Dict[str, Dict[str, Any]] = {} # Parsed valid data grouped by group_id
+    # --- CHANGE 3: Store failed rows and initial rows ---
+    failed_rows: List[Dict[str, Any]] = [] # Rows with errors
+    initial_rows_by_group: Dict[str, List[Dict]] = {} # Store original rows grouped by ID
     line_number = 1
-    for row in csv_reader:
+
+    # --- CHANGE 4: First pass - Read, validate basic format, group ---
+    file_reader_initial.seek(0) # Reset reader
+    csv_reader_initial = csv.DictReader(file_reader_initial) # Recreate
+
+    for row in csv_reader_initial:
         line_number += 1
+        group_id = row.get("order_group_id", "").strip()
+        row_copy = dict(row) # Store original row data
+        row_copy["line_number"] = line_number # Manually add line number to original row data for tracking
+
+        # Store all rows belonging to a group_id
+        if group_id:
+            if group_id not in initial_rows_by_group:
+                initial_rows_by_group[group_id] = []
+            initial_rows_by_group[group_id].append(row_copy)
+
+        error_reason = None
         try:
-            group_id = row["order_group_id"]
             if not group_id:
-                errors.append(f"Line {line_number}: Missing 'order_group_id'.")
-                continue
-            if group_id not in orders_data:
+                error_reason = "Missing 'order_group_id'."
+            else:
+                # Basic data type checks
+                item_quantity = int(row["item_quantity"])
+                discount_value = float(row.get("discount_value", 0.0))
+                shipping_charges = float(row.get("shipping_charges", 0.0))
+
+                # Check enums early if possible
+                payment_method = schemas.PaymentMethod(row["payment_method"])
                 raw_discount_type = row.get("discount_type")
                 parsed_discount_type = None
                 if raw_discount_type:
                     try:
                         parsed_discount_type = schemas.DiscountType(raw_discount_type.lower())
                     except ValueError:
-                        raise ValueError(f"'{raw_discount_type}' is not a valid DiscountType. Use 'percentage' or 'fixed'.")
-                orders_data[group_id] = {
-                    "customer_name": row["customer_name"],
-                    "customer_email": row["customer_email"],
-                    "shipping_address": row["shipping_address"],
-                    "payment_method": schemas.PaymentMethod(row["payment_method"]),
-                    "discount_type": parsed_discount_type,
-                    "discount_value": float(row.get("discount_value", 0.0)),
-                    "shipping_charges": float(row.get("shipping_charges", 0.0)),
-                    "items": []
-                }
-            orders_data[group_id]["items"].append({
-                "sku": row["item_sku"],
-                "quantity": int(row["item_quantity"])
-            })
+                        raise ValueError(f"Invalid DiscountType '{raw_discount_type}'. Use 'percentage' or 'fixed'.")
+
+                # If it's the first row for this group_id, create the order structure
+                if group_id not in orders_data and not error_reason:
+                    orders_data[group_id] = {
+                        "customer_name": row["customer_name"],
+                        "customer_email": row["customer_email"],
+                        "shipping_address": row["shipping_address"],
+                        "payment_method": payment_method,
+                        "discount_type": parsed_discount_type,
+                        "discount_value": discount_value,
+                        "shipping_charges": shipping_charges,
+                        "items": [],
+                        "line_numbers": [] # Track lines for error reporting
+                    }
+                # Add item details if group exists and no prior error for this row
+                if group_id in orders_data and not error_reason:
+                    orders_data[group_id]["items"].append({
+                        "sku": row["item_sku"],
+                        "quantity": item_quantity,
+                        "line_number": line_number # Store line number with item
+                    })
+                    orders_data[group_id]["line_numbers"].append(line_number)
+
+
         except ValueError as e:
-            errors.append(f"Line {line_number}: Invalid data format. {e}")
+            error_reason = f"Invalid data format: {e}"
+        except KeyError as e:
+            error_reason = f"Missing required column: {e}"
         except Exception as e:
-            errors.append(f"Line {line_number}: Error processing row. {e}")
-    if not orders_data and not errors:
-        raise HTTPException(status_code=400, detail="No valid order data found in the file.")
+            error_reason = f"Error processing row structure: {e}"
+
+        if error_reason:
+            row_copy["error_reason"] = error_reason
+            failed_rows.append(row_copy)
+            # If a row fails basic parsing, mark the entire group as failed if it exists
+            if group_id in orders_data:
+                orders_data[group_id]["has_error"] = True # Mark group as failed
+
+    # Filter out groups that had initial errors
+    valid_orders_data = {k: v for k, v in orders_data.items() if not v.get("has_error")}
+
+    if not valid_orders_data and not failed_rows:
+        raise HTTPException(status_code=400, detail="No valid order data found.")
+
     orders_created_count = 0
-    final_errors = list(errors) 
+    db_errors: List[Dict[str, Any]] = [] # Store errors from DB operations
+
+    # --- CHANGE 5: Process valid groups in a transaction ---
     try:
         with db.begin_nested(): 
-            for group_id, order_info in orders_data.items():
+            for group_id, order_info in valid_orders_data.items():
                 subtotal = 0.0
                 total_gst = 0.0
                 db_items_to_add = []
                 products_to_update = []
-                item_details_for_discount = [] 
+                item_details_for_discount = []
+                current_order_failed = False # Flag for this specific order
+
                 try:
+                    # Validate products, stock, calculate totals
                     for item in order_info["items"]:
-                        product = db.query(models.Product).filter(models.Product.sku == item["sku"]).with_for_update().first() 
-                        if not product: raise Exception(f"Product SKU '{item['sku']}' not found.")
-                        if product.stock_quantity < item["quantity"]: raise Exception(f"Not enough stock for {product.name} (SKU: {item['sku']}). Available: {product.stock_quantity}, Requested: {item['quantity']}")
-                        if product.selling_price is None: raise Exception(f"Selling price for {product.name} (SKU: {item['sku']}) is not set.")
-                        if product.gst_rate is None: raise Exception(f"GST Rate for {product.name} (SKU: {item['sku']}) is not set.")
+                        product = db.query(models.Product).filter(models.Product.sku == item["sku"]).with_for_update().first()
+                        if not product: raise Exception(f"Item SKU '{item['sku']}' (Line {item['line_number']}) not found.")
+                        if product.stock_quantity < item["quantity"]: raise Exception(f"Not enough stock for {product.name} (SKU: {item['sku']}, Line {item['line_number']}). Avail:{product.stock_quantity}, Req:{item['quantity']}")
+                        if product.selling_price is None: raise Exception(f"Selling price not set for {product.name} (SKU: {item['sku']}, Line {item['line_number']}).")
+                        if product.gst_rate is None: raise Exception(f"GST Rate not set for {product.name} (SKU: {item['sku']}, Line {item['line_number']}).")
+
                         item_subtotal = product.selling_price * item["quantity"]
                         subtotal += item_subtotal
                         db_items_to_add.append({"product": product, "quantity": item["quantity"]})
                         item_details_for_discount.append({"price": item_subtotal, "gst_rate": product.gst_rate})
-                        products_to_update.append(product) 
+                        products_to_update.append(product)
+
+                    # Calculate discount & totals
                     total_discount_amount = 0.0
                     discount_value = order_info["discount_value"]
                     discount_type = order_info["discount_type"]
                     if discount_type and discount_value > 0:
-                        if discount_type == schemas.DiscountType.percentage:
-                            total_discount_amount = subtotal * (discount_value / 100)
+                        if discount_type == schemas.DiscountType.percentage: total_discount_amount = subtotal * (discount_value / 100)
                         elif discount_type == schemas.DiscountType.fixed:
                             total_discount_amount = discount_value
-                            if total_discount_amount > subtotal:
-                                raise Exception("Fixed discount cannot be greater than subtotal.")
+                            if total_discount_amount > subtotal: raise Exception("Fixed discount > subtotal.")
+                    
                     for i, item_detail in enumerate(item_details_for_discount):
-                        item_price = item_detail["price"]
-                        item_gst_rate = item_detail["gst_rate"]
-                        item_discount = 0
-                        if subtotal > 0 and total_discount_amount > 0:
-                           item_share = item_price / subtotal
-                           item_discount = item_share * total_discount_amount
+                        item_price, item_gst_rate = item_detail["price"], item_detail["gst_rate"]
+                        item_discount = (item_price / subtotal * total_discount_amount) if subtotal > 0 else 0
                         taxable_value = item_price - item_discount
-                        item_gst = taxable_value * (item_gst_rate / 100)
-                        total_gst += item_gst
+                        total_gst += taxable_value * (item_gst_rate / 100)
+                    
                     grand_total = (subtotal - total_discount_amount) + total_gst + order_info["shipping_charges"]
+
+                    # Create Order
+                    db_order_data = order_info.copy()
+                    del db_order_data["items"]
+                    del db_order_data["line_numbers"] # Remove helper field
+                    
                     db_order = models.Order(
-                        customer_name=order_info["customer_name"],
-                        customer_email=order_info["customer_email"],
-                        shipping_address=order_info["shipping_address"],
-                        payment_method=order_info["payment_method"],
-                        payment_status=schemas.PaymentStatus.Unpaid,
-                        status=schemas.OrderStatus.Pending, 
+                        **db_order_data, # Use filtered data
                         subtotal=round(subtotal, 2),
-                        discount_type=order_info["discount_type"],
-                        discount_value=order_info["discount_value"],
-                        total_gst=round(total_gst, 2), 
-                        shipping_charges=order_info["shipping_charges"],
-                        total_amount=round(grand_total, 2) 
+                        total_gst=round(total_gst, 2),
+                        total_amount=round(grand_total, 2),
+                        payment_status=schemas.PaymentStatus.Unpaid,
+                        status=schemas.OrderStatus.Pending
                     )
+
                     db.add(db_order)
-                    db.flush() 
+                    db.flush()
+
+                    # Create OrderItems and update stock
                     for item_to_add in db_items_to_add:
-                        product = item_to_add["product"]
-                        quantity = item_to_add["quantity"]
+                        product, quantity = item_to_add["product"], item_to_add["quantity"]
                         order_item = models.OrderItem(order_id=db_order.id, product_id=product.id, quantity=quantity)
                         db.add(order_item)
                         product.stock_quantity -= quantity
                         _update_product_status_local(product, db)
+
                     orders_created_count += 1
+
                 except Exception as e:
-                    final_errors.append(f"Order Group ID '{group_id}': Failed. Reason: {str(e)}")
-                    continue 
-            db.commit() 
+                    # --- CHANGE 6: If DB operation fails for an order, add all its original rows to failed_rows ---
+                    current_order_failed = True
+                    error_reason = f"Order creation failed: {e}"
+                    db_errors.append({"group_id": group_id, "error": error_reason})
+                    
+                    if group_id in initial_rows_by_group:
+                        for original_row in initial_rows_by_group[group_id]:
+                            # Avoid adding duplicate errors if row already failed in first pass
+                            if not any(fr.get("line_number") == original_row.get("line_number") for fr in failed_rows):
+                                row_copy = dict(original_row)
+                                row_copy["error_reason"] = error_reason
+                                failed_rows.append(row_copy)
+                    
+                    db.rollback() # Rollback the savepoint for this specific order
+                    continue # Move to the next order group
+
+            db.commit() # Commit successful orders
+
     except Exception as e:
-        db.rollback() 
-        final_errors.append(f"Database transaction failed: {str(e)}. No orders were created in this batch.")
-        orders_created_count = 0 
+        db.rollback() # Rollback the entire transaction
+        # --- CHANGE 7: Add commit error and mark all rows as failed ---
+        commit_error_message = f"Database transaction failed: {e}. No orders were created in this batch."
+        db_errors.append({"group_id": "N/A", "error": commit_error_message})
+        
+        # Mark all originally *valid* groups as failed
+        for group_id in valid_orders_data: # Only add errors for rows that weren't already in failed_rows
+            if group_id in initial_rows_by_group:
+                 for original_row in initial_rows_by_group[group_id]:
+                    if not any(fr.get("line_number") == original_row.get("line_number") for fr in failed_rows):
+                        row_copy = dict(original_row)
+                        row_copy["error_reason"] = commit_error_message
+                        failed_rows.append(row_copy)
+                        
+        orders_created_count = 0 # Ensure count is 0
+
+    # --- CHANGE 8: Generate error report ID and final response ---
+    error_report_id = None
+    # Generate error strings from failed_rows for the simple 'errors' list
+    error_strings = [f"Line {row.get('line_number', 'N/A')} (Group ID: {row.get('order_group_id', 'N/A')}): {row['error_reason']}" for row in failed_rows]
+
+    if failed_rows:
+        error_report_id = str(uuid.uuid4())
+        # Store original headers and the failed rows
+        error_reports[error_report_id] = {"headers": original_fieldnames, "rows": failed_rows}
+
+    # Construct final message
+    if orders_created_count > 0:
+        final_message = f"{orders_created_count} order(s) created successfully."
+        if failed_rows:
+            final_message += f" {len(failed_rows)} row(s) corresponding to failed orders had errors."
+    elif failed_rows:
+        final_message = f"File processed, but {len(failed_rows)} row(s) had errors. No orders were created."
+    else:
+        final_message = "File processed. No valid orders found or created."
+
+
     return OrderUploadResponse(
-        message="Orders CSV processed.",
+        message=final_message,
         orders_created=orders_created_count,
-        errors=final_errors
+        errors=error_strings,
+        error_report_id=error_report_id
     )
 
-
-# --- Inventory Export Endpoint (Full code from previous version) ---
+# --- Inventory Export Endpoint (Code from previous version) ---
 @router.get("/inventory/export-csv")
 async def export_inventory_csv(db: Session = Depends(get_db)):
     """
@@ -424,7 +516,7 @@ async def export_inventory_csv(db: Session = Depends(get_db)):
         headers={"Content-Disposition": "attachment; filename=inventory_export.csv"}
     )
 
-# --- Orders Export Endpoint (Full code from previous version) ---
+# --- Orders Export Endpoint (Code from previous version) ---
 @router.get("/orders/export-csv")
 async def export_orders_csv(db: Session = Depends(get_db)):
     """
@@ -487,12 +579,11 @@ async def export_orders_csv(db: Session = Depends(get_db)):
         headers={"Content-Disposition": "attachment; filename=orders_export.csv"}
     )
 
-
-# --- Template Download Endpoints (Full code from previous version) ---
+# --- Template Download Endpoints (Code from previous version) ---
 @router.get("/inventory/template")
 async def download_inventory_template():
     """
-    Provides a CSV template file with only the required headers for inventory import.
+    Provides a CSV template file for inventory import.
     """
     output = io.StringIO()
     headers = [
@@ -512,7 +603,7 @@ async def download_inventory_template():
 @router.get("/orders/template")
 async def download_orders_template():
     """
-    Provides a CSV template file with only the required headers for orders import.
+    Provides a CSV template file for orders import.
     """
     output = io.StringIO()
     headers = [
@@ -530,19 +621,49 @@ async def download_orders_template():
         headers={"Content-Disposition": "attachment; filename=orders_import_template.csv"}
     )
 
-
-# --- CHANGE 10: NEW ENDPOINT TO DOWNLOAD ERROR FILE ---
+# --- Inventory Error Download Endpoint (Code from previous version) ---
 @router.get("/inventory/download-errors/{report_id}")
 async def download_inventory_errors(report_id: str):
     """
-    Downloads the specific rows that failed during a bulk inventory upload.
+    Downloads failed rows from an inventory upload.
     """
     report_data = error_reports.get(report_id)
     if not report_data:
         raise HTTPException(status_code=404, detail="Error report not found or expired.")
 
-    failed_rows = report_data["rows"]
-    original_headers = report_data["headers"]
+    failed_rows = report_data.get("rows", [])
+    original_headers = report_data.get("headers", [])
+    headers_with_error = original_headers + ["error_reason"]
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=headers_with_error, extrasaction='ignore')
+    writer.writeheader()
+
+    for row_dict in failed_rows:
+        row_to_write = {header: row_dict.get(header, "") for header in original_headers}
+        row_to_write["error_reason"] = row_dict.get("error_reason", "Unknown error")
+        writer.writerow(row_to_write)
+
+    output.seek(0)
+
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=inventory_errors_{report_id}.csv"}
+    )
+
+# --- CHANGE 9: NEW ENDPOINT TO DOWNLOAD ORDER ERRORS ---
+@router.get("/orders/download-errors/{report_id}")
+async def download_order_errors(report_id: str):
+    """
+    Downloads the specific rows that failed during a bulk order upload.
+    """
+    report_data = error_reports.get(report_id)
+    if not report_data:
+        raise HTTPException(status_code=404, detail="Error report not found or expired.")
+
+    failed_rows = report_data.get("rows", [])
+    original_headers = report_data.get("headers", [])
     # Add the error reason column header
     headers_with_error = original_headers + ["error_reason"]
 
@@ -565,5 +686,5 @@ async def download_inventory_errors(report_id: str):
     return StreamingResponse(
         output,
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=inventory_errors_{report_id}.csv"}
+        headers={"Content-Disposition": f"attachment; filename=order_errors_{report_id}.csv"}
     )
