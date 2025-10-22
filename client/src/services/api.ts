@@ -73,7 +73,15 @@ export const uploadInventoryCSV = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  return apiClient.post("/bulk/inventory/upload-csv", formData, {
+  // --- CHANGE 1: Update response type expectation ---
+  // The backend now returns BulkUploadResponse which might include error_report_id
+  return apiClient.post<{
+    message: string;
+    products_added: number;
+    products_updated: number;
+    errors: string[];
+    error_report_id?: string; // Expect this optional field
+  }>("/bulk/inventory/upload-csv", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -84,7 +92,13 @@ export const uploadOrdersCSV = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  return apiClient.post("/bulk/orders/upload-csv", formData, {
+  // Assuming Order upload might also get error report feature later
+  return apiClient.post<{
+    message: string;
+    orders_created: number;
+    errors: string[];
+    error_report_id?: string;
+  }>("/bulk/orders/upload-csv", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -92,41 +106,37 @@ export const uploadOrdersCSV = (file: File) => {
 };
 
 // --- CSV EXPORT FUNCTIONS ---
-
-/**
- * Fetches the inventory data as a CSV file blob.
- */
 export const exportInventoryCSV = () => {
   return apiClient.get("/bulk/inventory/export-csv", {
-    responseType: "blob", // Important: tells axios to download file data
+    responseType: "blob",
   });
 };
-
-/**
- * Fetches the orders data as a CSV file blob.
- */
 export const exportOrdersCSV = () => {
   return apiClient.get("/bulk/orders/export-csv", {
-    responseType: "blob", // Important: tells axios to download file data
+    responseType: "blob",
   });
 };
 
-// --- !! NEW !! CSV TEMPLATE DOWNLOAD FUNCTIONS ---
-
-/**
- * Fetches the inventory import template CSV file blob.
- */
+// --- CSV TEMPLATE DOWNLOAD FUNCTIONS ---
 export const downloadInventoryTemplate = () => {
   return apiClient.get("/bulk/inventory/template", {
-    responseType: "blob", // Important: tells axios to download file data
+    responseType: "blob",
+  });
+};
+export const downloadOrderTemplate = () => {
+  return apiClient.get("/bulk/orders/template", {
+    responseType: "blob",
   });
 };
 
+// --- !! NEW !! ERROR FILE DOWNLOAD FUNCTION ---
+
 /**
- * Fetches the orders import template CSV file blob.
+ * Downloads the CSV file containing rows that failed during inventory import.
+ * @param reportId The unique ID of the error report.
  */
-export const downloadOrderTemplate = () => {
-  return apiClient.get("/bulk/orders/template", {
-    responseType: "blob", // Important: tells axios to download file data
+export const downloadInventoryErrorFile = (reportId: string) => {
+  return apiClient.get(`/bulk/inventory/download-errors/${reportId}`, {
+    responseType: "blob", // Important for file download
   });
 };
