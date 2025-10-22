@@ -80,7 +80,6 @@ export const uploadInventoryCSV = (file: File) => {
   });
 };
 
-// --- NEW FUNCTION: For Orders CSV upload ---
 export const uploadOrdersCSV = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
@@ -89,5 +88,25 @@ export const uploadOrdersCSV = (file: File) => {
     headers: {
       "Content-Type": "multipart/form-data",
     },
+  });
+};
+
+// --- !! NEW !! CSV EXPORT FUNCTIONS ---
+
+/**
+ * Fetches the inventory data as a CSV file blob.
+ */
+export const exportInventoryCSV = () => {
+  return apiClient.get("/bulk/inventory/export-csv", {
+    responseType: "blob", // Important: tells axios to download file data
+  });
+};
+
+/**
+ * Fetches the orders data as a CSV file blob.
+ */
+export const exportOrdersCSV = () => {
+  return apiClient.get("/bulk/orders/export-csv", {
+    responseType: "blob", // Important: tells axios to download file data
   });
 };

@@ -1,11 +1,24 @@
 import React, { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, Loader, CheckCircle, AlertCircle } from "lucide-react";
+import {
+  Upload,
+  Loader,
+  CheckCircle,
+  AlertCircle,
+  FileDown,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-// --- CHANGE 1: Import the new 'uploadOrdersCSV' function ---
-import { uploadInventoryCSV, uploadOrdersCSV } from "@/services/api";
 
-// --- New Dropzone Component (For cleaner code) ---
+// --- CHANGE 1: Naye 'export' functions aur 'saveAs' ko import karein ---
+import {
+  uploadInventoryCSV,
+  uploadOrdersCSV,
+  exportInventoryCSV, // Naya import
+  exportOrdersCSV, // Naya import
+} from "@/services/api";
+import { saveAs } from "file-saver"; // Naya import
+
+// --- Dropzone Component (No Change) ---
 interface DropzoneProps {
   onDrop: (files: File[]) => void;
   loading: boolean;
@@ -50,7 +63,7 @@ const FileDropzone: React.FC<DropzoneProps> = ({ onDrop, loading, title }) => {
 
 // --- Main Import Page Component ---
 const ImportPage: React.FC = () => {
-  // --- CHANGE 2: Separate states for both uploaders ---
+  // Import states
   const [invLoading, setInvLoading] = useState(false);
   const [invError, setInvError] = useState<string | null>(null);
   const [invSuccess, setInvSuccess] = useState<string | null>(null);
@@ -59,7 +72,12 @@ const ImportPage: React.FC = () => {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
 
-  // Handler for inventory upload
+  // Export states
+  const [invExportLoading, setInvExportLoading] = useState(false);
+  const [orderExportLoading, setOrderExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Import Handlers (No Change)
   const onInventoryDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     const file = acceptedFiles[0];
@@ -79,7 +97,6 @@ const ImportPage: React.FC = () => {
       }
       setInvSuccess(successMessage);
     } catch (err: any) {
-      // (Error handling logic is the same)
       let errorMessage = "File upload failed. Please try again.";
       const detail = err.response?.data?.detail;
 
@@ -98,7 +115,6 @@ const ImportPage: React.FC = () => {
     }
   }, []);
 
-  // --- CHANGE 3: New handler for Orders upload ---
   const onOrdersDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     const file = acceptedFiles[0];
@@ -107,7 +123,7 @@ const ImportPage: React.FC = () => {
     setOrderSuccess(null);
 
     try {
-      const response = await uploadOrdersCSV(file); // Call new API function
+      const response = await uploadOrdersCSV(file);
       const added = response.data.orders_created || 0;
       const errors = response.data.errors || [];
 
@@ -132,26 +148,82 @@ const ImportPage: React.FC = () => {
     }
   }, []);
 
+  // --- CHANGE 3: Export handlers ko update karein ---
+
+  // Inventory Export Handler
+  const handleInventoryExport = useCallback(async () => {
+    setInvExportLoading(true);
+    setExportError(null);
+    try {
+      // Asli API call karein
+      const response = await exportInventoryCSV();
+      // File ko 'saveAs' se download karein
+      saveAs(response.data, "inventory_export.csv");
+    } catch (err) {
+      console.error(err);
+      setExportError("Failed to export inventory.");
+    } finally {
+      setInvExportLoading(false);
+    }
+  }, []);
+
+  // Orders Export Handler
+  const handleOrdersExport = useCallback(async () => {
+    setOrderExportLoading(true);
+    setExportError(null);
+    try {
+      // Asli API call karein
+      const response = await exportOrdersCSV();
+      // File ko 'saveAs' se download karein
+      saveAs(response.data, "orders_export.csv");
+    } catch (err) {
+      console.error(err);
+      setExportError("Failed to export orders.");
+    } finally {
+      setOrderExportLoading(false);
+    }
+  }, []);
+
   return (
     <div className="bg-zinc-900 rounded-lg shadow-lg p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Import & Export Data</h1>
         <p className="text-sm text-zinc-400">
-          Bulk upload your products or orders via CSV.
+          Bulk upload or download your products and orders.
         </p>
       </div>
 
-      {/* --- CHANGE 4: Now there are two separate sections --- */}
+      {/* Common Error message for Export */}
+      {exportError && (
+        <div className="mb-4 p-3 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 flex items-center gap-3">
+          <AlertCircle size={16} /> <p className="text-sm">{exportError}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Section 1: Inventory Import */}
-        <div className="border-t border-zinc-800 pt-6">
-          <h2 className="text-lg font-semibold text-white mb-4">
-            Import Inventory from CSV
-          </h2>
+        {/* === Section 1: Inventory === */}
+        <div className="border-t border-zinc-800 pt-6 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-white">Inventory</h2>
+            {/* Inventory Export Button (No change) */}
+            <button
+              onClick={handleInventoryExport}
+              disabled={invExportLoading}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs bg-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-600 disabled:opacity-50"
+            >
+              {invExportLoading ? (
+                <Loader className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              Export All
+            </button>
+          </div>
+
           <FileDropzone
             onDrop={onInventoryDrop}
             loading={invLoading}
-            title="Drag & drop Inventory CSV here"
+            title="Drag & drop Inventory CSV to Import"
           />
           {invSuccess && (
             <div className="mt-4 p-3 rounded-md bg-green-500/10 border border-green-500/30 text-green-300 flex items-center gap-3">
@@ -165,15 +237,29 @@ const ImportPage: React.FC = () => {
           )}
         </div>
 
-        {/* Section 2: Orders Import */}
-        <div className="border-t border-zinc-800 pt-6">
-          <h2 className="text-lg font-semibold text-white mb-4">
-            Import Orders from CSV
-          </h2>
+        {/* === Section 2: Orders === */}
+        <div className="border-t border-zinc-800 pt-6 flex flex-col gap-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold text-white">Orders</h2>
+            {/* Orders Export Button (No change) */}
+            <button
+              onClick={handleOrdersExport}
+              disabled={orderExportLoading}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs bg-zinc-700 text-zinc-300 rounded-md hover:bg-zinc-600 disabled:opacity-50"
+            >
+              {orderExportLoading ? (
+                <Loader className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              Export All
+            </button>
+          </div>
+
           <FileDropzone
             onDrop={onOrdersDrop}
             loading={orderLoading}
-            title="Drag & drop Orders CSV here"
+            title="Drag & drop Orders CSV to Import"
           />
           {orderSuccess && (
             <div className="mt-4 p-3 rounded-md bg-green-500/10 border border-green-500/30 text-green-300 flex items-center gap-3">
