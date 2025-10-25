@@ -222,6 +222,16 @@ export interface OrderStatusBreakdownItem {
   value: number; // Count for that status
 }
 
+// --- NAYE TYPES: Low Stock Products ke liye ---
+export interface LowStockProduct {
+  name: string;
+  stock_quantity: number;
+}
+export interface LowStockProductResponse {
+  data: LowStockProduct[];
+}
+// --- END OF NEW TYPES ---
+
 // --- MODIFY THE EXISTING AnalyticsSummary TYPE ---
 export interface AnalyticsSummary {
   kpi_cards: { title: string; value: string; change?: string }[];

@@ -8,12 +8,14 @@ import {
 import type { AnalyticsSummary } from "@/types";
 // Lucide icons
 import { Download, AlertTriangle, TrendingUp, ListChecks } from "lucide-react";
-// Sabhi analytics components ko ek jagah se import kiya (index.ts file se)
+// Sabhi analytics components ko alag-alag import kiya
 import { KpiCardGrid } from "@/components/Analytics/KpiCardGrid";
 import { TopProductsChart } from "@/components/Analytics/TopProductsChart";
 import { DeliveryPieChart } from "@/components/Analytics/DeliveryPieChart";
 import { OrderStatusChart } from "@/components/Analytics/OrderStatusChart";
 import { RevenueChart } from "@/components/Analytics/RevenueChart";
+// --- NAYA COMPONENT IMPORT KAREIN ---
+import { LowStockProductsList } from "@/components/Analytics/LowStockProductsList";
 
 // --- Confirmation Modal Component (Poora code) ---
 interface ConfirmationModalProps {
@@ -259,6 +261,9 @@ const AnalyticsPage: React.FC = () => {
                   KPI Cards data is unavailable.
                 </div>
               )}
+
+              {/* --- NAYA COMPONENT YAHAN ADD KIYA GAYA HAI --- */}
+              <LowStockProductsList />
 
               {/* Top Selling Products */}
               <div className="bg-zinc-900 rounded-lg shadow-lg p-6 border border-zinc-800">

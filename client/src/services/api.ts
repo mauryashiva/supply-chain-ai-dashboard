@@ -13,6 +13,7 @@ import type {
   OrderUpdate,
   AppSetting,
   AppSettingsUpdate,
+  LowStockProduct,
 } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -45,6 +46,12 @@ export const getOrders = () => apiClient.get<Order[]>("/orders/");
 export const getVehicles = () =>
   apiClient.get<Vehicle[]>("/logistics/vehicles");
 export const getUsers = () => apiClient.get<User[]>("/users/");
+
+/**
+ * Fetches a list of products that are low in stock.
+ */
+export const getLowStockProducts = () =>
+  apiClient.get<{ data: LowStockProduct[] }>("/analytics/low-stock-products");
 
 // Fetches daily revenue
 export const getRevenueOverTime = (days: number = 30) =>
