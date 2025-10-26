@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine
 from .models import models
 # --- CHANGE 1: 'bulk' ko .api import se hataya ---
-from .api import analytics, inventory, orders, logistics, users, ai, settings
+from .api import analytics, inventory, orders, logistics, users, ai, settings, forecasting
 # --- CHANGE 2: Naye bulk modules ko unke naye folder se import kiya ---
 from .bulk import bulk_inventory, bulk_orders
 
@@ -31,7 +31,7 @@ app.include_router(logistics.router, prefix="/api/logistics", tags=["Logistics"]
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
-
+app.include_router(forecasting.router, prefix="/api", tags=["Forecasting"])
 # --- CHANGE 3: Purana 'bulk' router hata diya ---
 # app.include_router(bulk.router, prefix="/api/bulk", tags=["Bulk Operations"]) # Yeh hatt gaya
 

@@ -14,6 +14,7 @@ import type {
   AppSetting,
   AppSettingsUpdate,
   LowStockProduct,
+  DemandForecast,
 } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -52,6 +53,18 @@ export const getUsers = () => apiClient.get<User[]>("/users/");
  */
 export const getLowStockProducts = () =>
   apiClient.get<{ data: LowStockProduct[] }>("/analytics/low-stock-products");
+
+// --- CHANGE 2: Naya forecast function add karein ---
+// --- YAHAN BADLAAV KIYA GAYA HAI ---
+/**
+ * Fetches 30-day demand forecast.
+ * @param productId (Optional) If provided, forecasts for this specific product ID.
+ */
+export const getDemandForecast = (productId?: number) =>
+  apiClient.get<DemandForecast>("/forecast", {
+    params: { product_id: productId },
+  });
+// --- BADLAAV KHATAM ---
 
 // Fetches daily revenue
 export const getRevenueOverTime = (days: number = 30) =>

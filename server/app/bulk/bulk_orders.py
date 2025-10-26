@@ -210,7 +210,7 @@ async def upload_orders_csv(file: UploadFile = File(...), db: Session = Depends(
                         
                         # --- IMPORTANT: IMPORTED FUNCTION KA ISTEMAL ---
                         # '_update_product_status_local' ki jagah
-                        update_product_status_dynamically(product, db)
+                        # update_product_status_dynamically(product, db)
 
                     orders_created_count += 1
 

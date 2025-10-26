@@ -1,4 +1,5 @@
 # server/app/bulk/bulk_inventory.py
+# (FINAL CODE: 'status' column database se hataane ke baad)
 
 import csv
 import io
@@ -33,13 +34,13 @@ class BulkUploadResponse(BaseModel):
 @router.post("/upload-csv", response_model=BulkUploadResponse)
 async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Imports/updates products. (Fixes TypeError and SKU duplicate error)
+    Imports/updates products. (Status column database se hata diya gaya hai)
     """
     
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a .csv file.")
 
-    low_stock_threshold = get_low_stock_threshold(db)
+    low_stock_threshold = get_low_stock_threshold(db) # Iski zaroorat nahi hai yahan
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="The file is empty.")
@@ -94,11 +95,10 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             continue
 
         try:
-            # --- YEH HAI ASLI FINAL FIX ---
+            # --- STATUS LOGIC HATA DIYA GAYA ---
             
-            # 1. Stock aur Status ko pehle calculate karein
+            # 1. Stock ko lein
             stock = int(row.get("stock_quantity", 0))
-            calculated_status = get_product_status(stock, low_stock_threshold)
             
             # 2. Schema ke liye data dictionary banayein (BINA 'status' KE)
             product_data_for_schema = {
@@ -119,20 +119,19 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             db_product = db.query(models.Product).filter(models.Product.sku == sku).first()
 
             if db_product:
-                # 4a. UPDATE: ProductBase use karein (bina status)
+                # 4a. UPDATE: ProductBase use karein
                 validated_data = schemas.ProductBase(**product_data_for_schema)
                 products_to_update.append(db_product)
-                # Status ko baad mein use karne ke liye store karein
-                update_data_map[sku] = {"data": validated_data, "status": calculated_status}
+                # Status ko store na karein
+                update_data_map[sku] = {"data": validated_data}
                 updated_skus.append(sku)
             else:
-                # 4b. CREATE: ProductCreate use karein (bina status)
+                # 4b. CREATE: ProductCreate use karein
                 product_data_for_schema["images"] = []
                 validated_data = schemas.ProductCreate(**product_data_for_schema)
                 
-                # 5. DB Model ke liye data tayyar karein (STATUS KE SAATH)
+                # 5. DB Model ke liye data tayyar karein (BINA STATUS KE)
                 model_data = validated_data.model_dump()
-                model_data["status"] = calculated_status # Status ko yahan add karein
                 
                 products_to_add.append(models.Product(**model_data))
                 added_skus.append(sku)
@@ -161,13 +160,12 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
     try:
         if products_to_update:
             for product in products_to_update:
-                # Stored data (schema + status) ko nikalein
                 update_info = update_data_map[product.sku]
-                update_data = update_info["data"] # Yeh schemas.ProductBase hai
+                update_data = update_info["data"] 
                 
                 product.name = update_data.name
                 product.stock_quantity = update_data.stock_quantity
-                product.status = update_info["status"] # Stored status ko yahan set karein
+                # --- STATUS LINE HATA DI GAYI ---
                 product.category = update_data.category
                 product.supplier = update_data.supplier
                 product.reorder_level = update_data.reorder_level
@@ -175,9 +173,9 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
                 product.selling_price = update_data.selling_price
                 product.gst_rate = update_data.gst_rate
                 
-                if update_data.description:
+                if hasattr(update_data, 'description') and update_data.description:
                     product.description = update_data.description
-                if update_data.last_restocked:
+                if hasattr(update_data, 'last_restocked') and update_data.last_restocked:
                     product.last_restocked = update_data.last_restocked
                     
             updated_count = len(products_to_update)
@@ -237,6 +235,7 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
 async def export_inventory_csv(db: Session = Depends(get_db)):
     """
     Exports all inventory products to a CSV file.
+    (Real-time status calculation)
     """
     output = io.StringIO()
     headers = [
@@ -245,8 +244,17 @@ async def export_inventory_csv(db: Session = Depends(get_db)):
     ]
     writer = csv.DictWriter(output, fieldnames=headers)
     writer.writeheader()
+    
+    # --- YAHAN BADLAAV KIYA GAYA ---
+    # Settings se threshold fetch karein
+    low_stock_threshold = get_low_stock_threshold(db)
+    
     products = db.query(models.Product).all()
     for product in products:
+        
+        # Status ko manually calculate karein
+        calculated_status = get_product_status(product.stock_quantity, low_stock_threshold)
+        
         writer.writerow({
             "name": product.name,
             "sku": product.sku,
@@ -257,15 +265,16 @@ async def export_inventory_csv(db: Session = Depends(get_db)):
             "cost_price": product.cost_price,
             "selling_price": product.selling_price,
             "gst_rate": product.gst_rate,
-            "status": product.status.value if product.status else None
+            # Calculated status ka istemaal karein
+            "status": calculated_status.value if calculated_status else None
         })
     output.seek(0)
     return StreamingResponse(
         output,
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=inventory_export.csv","Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0"}
+                 "Pragma": "no-cache",
+                 "Expires": "0"}
     )
 
 @router.get("/template")
@@ -300,14 +309,19 @@ async def download_inventory_errors(report_id: str):
 
     failed_rows = report_data.get("rows", [])
     original_headers = report_data.get("headers", [])
-    headers_with_error = original_headers + ["error_reason"]
+    
+    # Yahan se 'status' hata dein
+    headers_with_error = [
+        "name", "sku", "stock_quantity", "category", "supplier",
+        "reorder_level", "cost_price", "selling_price", "gst_rate", "error_reason"
+    ]
 
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=headers_with_error, extrasaction='ignore')
     writer.writeheader()
 
     for row_dict in failed_rows:
-        row_to_write = {header: row_dict.get(header, "") for header in original_headers}
+        row_to_write = {header: row_dict.get(header, "") for header in headers_with_error if header != "error_reason"}
         row_to_write["error_reason"] = row_dict.get("error_reason", "Unknown error")
         writer.writerow(row_to_write)
 

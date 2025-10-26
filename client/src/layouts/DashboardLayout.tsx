@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   FileUp,
+  Brain, // --- CHANGE 1: Naya icon import karein ---
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SettingsModal } from "@/components/settings/SettingsModal";
@@ -56,6 +57,7 @@ const NavItem: React.FC<NavItemProps> = ({
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/analytics", label: "Analytics", icon: BarChart2 },
+  { to: "/forecast", label: "AI Forecast", icon: Brain }, // Naya link
   { to: "/orders", label: "Orders", icon: Package },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/logistics", label: "Logistics", icon: Truck },

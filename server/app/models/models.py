@@ -74,7 +74,7 @@ class Product(Base):
     name = Column(String, index=True)
     sku = Column(String, unique=True, index=True)
     stock_quantity = Column(Integer)
-    status = Column(Enum(StockStatus))
+    # status = Column(Enum(StockStatus))
     
     description = Column(Text, nullable=True)
     category = Column(String, index=True, nullable=True)

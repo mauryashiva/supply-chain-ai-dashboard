@@ -240,3 +240,11 @@ export interface AnalyticsSummary {
   // --- ADD THIS NEW FIELD ---
   order_status_breakdown: OrderStatusBreakdownItem[]; // Add this line
 }
+export interface ForecastDataPoint {
+  date: string;
+  value: number;
+}
+
+export interface DemandForecast {
+  forecast: ForecastDataPoint[];
+}

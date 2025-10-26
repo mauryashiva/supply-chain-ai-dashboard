@@ -13,6 +13,7 @@ import LogisticsPage from "@/pages/LogisticsPage";
 import UsersPage from "@/pages/UsersPage";
 // --- CHANGE 1: Added new ImportPage component ---
 import ImportPage from "@/pages/ImportPage";
+import ForecastPage from "@/pages/ForecastPage";
 
 const router = createBrowserRouter([
   {
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
+      { path: "forecast", element: <ForecastPage /> },
       { path: "orders", element: <OrdersPage /> },
       { path: "inventory", element: <InventoryPage /> },
       // --- CHANGE 2: Added new route ---

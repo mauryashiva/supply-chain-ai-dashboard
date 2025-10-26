@@ -236,14 +236,14 @@ def get_monthly_revenue(
     return {"data": monthly_data}
 
 
-# --- Demand Forecast Endpoint (No change) ---
-@router.get("/forecast", response_model=schemas.DemandForecast)
-def get_demand_forecast(db: Session = Depends(get_db)):
-    """ Provides dummy demand forecast data. """
-    forecast_data = []
-    today = datetime.now()
-    for i in range(30): # Generate forecast for next 30 days
-        future_date = today + timedelta(days=i)
-        value = int(100 + 20 * (1 + 0.8 * (future_date.weekday() / 6)) + random.uniform(-15, 15))
-        forecast_data.append({"date": future_date.strftime("%Y-%m-%d"), "value": max(0, value)})
-    return {"forecast": forecast_data}
+# # --- Demand Forecast Endpoint (No change) ---
+# @router.get("/forecast", response_model=schemas.DemandForecast)
+# def get_demand_forecast(db: Session = Depends(get_db)):
+#     """ Provides dummy demand forecast data. """
+#     forecast_data = []
+#     today = datetime.now()
+#     for i in range(30): # Generate forecast for next 30 days
+#         future_date = today + timedelta(days=i)
+#         value = int(100 + 20 * (1 + 0.8 * (future_date.weekday() / 6)) + random.uniform(-15, 15))
+#         forecast_data.append({"date": future_date.strftime("%Y-%m-%d"), "value": max(0, value)})
+#     return {"forecast": forecast_data}
