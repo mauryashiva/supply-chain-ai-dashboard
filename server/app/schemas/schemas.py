@@ -91,7 +91,11 @@ class OrderItemCreate(BaseModel):
     product_id: int; quantity: int
 
 class OrderBase(BaseModel):
-    customer_name: str; customer_email: str; shipping_address: str
+    customer_name: str; customer_email: str
+    # --- ADD THIS LINE ---
+    phone_number: Optional[str] = None # Optional phone number
+    # --- END ADD ---
+    shipping_address: str
 
     # --- NEW & UPDATED FINANCIAL FIELDS ---
     subtotal: float

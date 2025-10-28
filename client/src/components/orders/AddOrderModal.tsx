@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, type FormEvent } from "react";
-import { PackagePlus, Trash2, TrendingUp } from "lucide-react";
+import { PackagePlus, Trash2, TrendingUp } from "lucide-react"; // Import Phone icon if needed elsewhere, not strictly required here
 import type {
   Order,
   OrderCreate,
@@ -30,9 +30,11 @@ interface AddOrderModalProps {
   onProductAdded: (newProduct: Product) => void;
 }
 
+// --- UPDATED INITIAL_FORM_STATE ---
 const INITIAL_FORM_STATE = {
   customer_name: "",
   customer_email: "",
+  phone_number: "", // Added phone number
   shipping_address: "",
   payment_status: "Unpaid" as PaymentStatus,
   payment_method: "COD" as PaymentMethod,
@@ -68,12 +70,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }
   }, [isOpen]);
 
+  // Order Totals calculation (no change)
   const orderTotals = useMemo(() => {
     const subtotal = formState.items.reduce((acc, item) => {
       const product = products.find((p) => p.id === item.product_id);
       return acc + (product?.selling_price || 0) * item.quantity;
     }, 0);
-
     let discountAmount = 0;
     const discountValue = Number(formState.discount_value) || 0;
     if (formState.discount_type === "percentage") {
@@ -82,12 +84,10 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
       discountAmount = discountValue;
     }
     if (discountAmount > subtotal) discountAmount = subtotal;
-
     const totalGst = formState.items.reduce((acc, item) => {
       const product = products.find((p) => p.id === item.product_id);
       if (!product || !product.selling_price || product.gst_rate === null)
         return acc;
-
       const itemTotalPrice = product.selling_price * item.quantity;
       let itemDiscount = 0;
       if (subtotal > 0 && discountAmount > 0) {
@@ -97,10 +97,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
       const itemGst = taxableValue * ((product.gst_rate || 0) / 100);
       return acc + itemGst;
     }, 0);
-
     const shipping = Number(formState.shipping_charges) || 0;
     const totalAmount = subtotal - discountAmount + totalGst + shipping;
-
     return { subtotal, discountAmount, totalGst, shipping, totalAmount };
   }, [
     formState.items,
@@ -110,11 +108,13 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     products,
   ]);
 
+  // Available products calculation (no change)
   const availableProducts = useMemo(() => {
     const addedProductIds = formState.items.map((item) => item.product_id);
     return products.filter((p) => !addedProductIds.includes(p.id));
   }, [products, formState.items]);
 
+  // --- UPDATED handleChange ---
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -122,7 +122,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
   ) => {
     const { name, value } = e.target;
     const numberFields = ["discount_value", "shipping_charges", "vehicle_id"];
-    if (numberFields.includes(name)) {
+
+    if (name === "phone_number") {
+      // Allow only digits (and maybe '+')
+      const numericValue = value.replace(/[^+\d]/g, "");
+      setFormState((prev) => ({ ...prev, [name]: numericValue }));
+    } else if (numberFields.includes(name)) {
       setFormState((prev) => ({
         ...prev,
         [name]: value === "" ? "" : parseFloat(value) || 0,
@@ -132,6 +137,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }
   };
 
+  // Item handling functions (handleAddItem, handleQuantityChange, handleRemoveItem - no changes)
   const handleAddItem = () => {
     if (!selectedProductId || itemQuantity <= 0) {
       setError("Please select a product and enter a valid quantity.");
@@ -139,9 +145,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }
     const productId = parseInt(selectedProductId, 10);
     if (isNaN(productId)) {
-      setError(
-        "Invalid product selected. Please choose a product from the list."
-      );
+      setError("Invalid product selected.");
       return;
     }
     const existingItem = formState.items.find(
@@ -169,24 +173,18 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     setItemQuantity(1);
     setError(null);
   };
-
   const handleQuantityChange = (productId: number, newQuantity: number) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
-
     if (newQuantity > product.stock_quantity) {
-      setError(
-        `Only ${product.stock_quantity} units of ${product.name} are available.`
-      );
+      setError(`Only ${product.stock_quantity} units available.`);
       newQuantity = product.stock_quantity;
     } else {
       setError(null);
     }
-
     if (newQuantity < 1) {
       newQuantity = 1;
     }
-
     setFormState((prev) => ({
       ...prev,
       items: prev.items.map((item) =>
@@ -196,7 +194,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
       ),
     }));
   };
-
   const handleRemoveItem = (productIdToRemove: number) => {
     setFormState((prev) => ({
       ...prev,
@@ -204,6 +201,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }));
   };
 
+  // Quick Add handling (no change)
   const handleOpenQuickAdd = () => {
     const nameInput = document.querySelector(
       'input[name="product-search"]'
@@ -212,6 +210,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     setIsQuickAddOpen(true);
   };
 
+  // --- UPDATED handleSubmit ---
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (formState.items.length === 0) {
@@ -224,6 +223,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     const payload: OrderCreate = {
       customer_name: formState.customer_name,
       customer_email: formState.customer_email,
+      phone_number: formState.phone_number || undefined, // Include phone number
       shipping_address: formState.shipping_address,
       payment_method: formState.payment_method,
       payment_status: formState.payment_status,
@@ -270,11 +270,14 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
+              {/* --- CUSTOMER DETAILS FIELDSET (Updated Grid & Phone Field) --- */}
               <fieldset className="border border-zinc-700 p-4 rounded-lg">
                 <legend className="px-2 text-sm text-zinc-400">
                   Customer Details
                 </legend>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {" "}
+                  {/* Changed to 3 cols */}
                   <div>
                     <label className="block text-xs text-zinc-400 mb-1">
                       Customer Name
@@ -300,8 +303,27 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
                     />
                   </div>
+                  <div>
+                    {" "}
+                    {/* Phone Number Input */}
+                    <label className="block text-xs text-zinc-400 mb-1">
+                      Phone Number {/* Removed (Optional) */}
+                    </label>
+                    <input
+                      name="phone_number"
+                      type="tel"
+                      value={formState.phone_number}
+                      onChange={handleChange}
+                      placeholder="e.g., +91XXXXXXXXXX"
+                      className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
+                      maxLength={15}
+                    />
+                  </div>
                 </div>
-                <div className="mt-4">
+                {/* Shipping Address (spans full width) */}
+                <div className="mt-4 md:col-span-3">
+                  {" "}
+                  {/* Span full width */}
                   <label className="block text-xs text-zinc-400 mb-1">
                     Shipping Address
                   </label>
@@ -315,6 +337,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                   ></textarea>
                 </div>
               </fieldset>
+
+              {/* Order Items Fieldset (no change) */}
               <fieldset className="border border-zinc-700 p-4 rounded-lg">
                 <legend className="px-2 text-sm text-zinc-400">
                   Order Items
@@ -339,11 +363,12 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                           value={p.id}
                           disabled={p.stock_quantity === 0}
                         >
+                          {" "}
                           {p.name} -{" "}
                           {p.stock_quantity > 0
                             ? `${p.stock_quantity} units`
                             : "OUT OF STOCK"}{" "}
-                          ({p.status})
+                          ({p.status}){" "}
                         </option>
                       ))}
                     </datalist>
@@ -375,7 +400,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                     onClick={handleAddItem}
                     className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 self-end h-10"
                   >
-                    <PackagePlus size={16} /> Add Item
+                    {" "}
+                    <PackagePlus size={16} /> Add Item{" "}
                   </button>
                 </div>
                 <div className="mt-4 space-y-2 max-h-32 overflow-y-auto pr-2">
@@ -389,8 +415,10 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                           key={item.product_id}
                           className="flex justify-between items-center bg-zinc-800 p-2 rounded-md text-sm"
                         >
-                          <span>{product?.name}</span>
+                          {" "}
+                          <span>{product?.name}</span>{" "}
                           <div className="flex items-center gap-4">
+                            {" "}
                             <input
                               type="number"
                               value={item.quantity}
@@ -403,16 +431,17 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                               className="w-20 bg-zinc-700 border-zinc-600 rounded-md p-1 text-center font-mono"
                               min="1"
                               max={product?.stock_quantity}
-                            />
+                            />{" "}
                             <button
                               type="button"
                               onClick={() => handleRemoveItem(item.product_id)}
                               className="text-red-500 hover:text-red-400"
                               title="Remove Item"
                             >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+                              {" "}
+                              <Trash2 size={14} />{" "}
+                            </button>{" "}
+                          </div>{" "}
                         </div>
                       );
                     })
@@ -426,15 +455,17 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             </div>
 
             <div className="space-y-4">
+              {/* Fulfillment & Payment Fieldset (no change) */}
               <fieldset className="border border-zinc-700 p-4 rounded-lg">
                 <legend className="px-2 text-sm text-zinc-400">
                   Fulfillment & Payment
                 </legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Discount Value
-                    </label>
+                    </label>{" "}
                     <input
                       type="number"
                       name="discount_value"
@@ -442,26 +473,29 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       onChange={handleChange}
                       min="0"
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                    />
+                    />{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Discount Type
-                    </label>
+                    </label>{" "}
                     <select
                       name="discount_type"
                       value={formState.discount_type}
                       onChange={handleChange}
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
                     >
-                      <option value="fixed">Fixed (₹)</option>
-                      <option value="percentage">Percentage (%)</option>
-                    </select>
+                      {" "}
+                      <option value="fixed">Fixed (₹)</option>{" "}
+                      <option value="percentage">Percentage (%)</option>{" "}
+                    </select>{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Shipping Charges (₹)
-                    </label>
+                    </label>{" "}
                     <input
                       type="number"
                       name="shipping_charges"
@@ -469,48 +503,53 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       onChange={handleChange}
                       min="0"
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                    />
+                    />{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Order Status
-                    </label>
+                    </label>{" "}
                     <select
                       name="status"
                       value={formState.status}
                       onChange={handleChange}
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
                     >
-                      <option value="Pending">Pending</option>
-                      <option value="Processing">Processing</option>
-                      <option value="Shipped">Shipped</option>
-                      <option value="In Transit">In Transit</option>
-                      <option value="Delivered">Delivered</option>
-                      <option value="Cancelled">Cancelled</option>
-                      <option value="Returned">Returned</option>
-                    </select>
+                      {" "}
+                      <option value="Pending">Pending</option>{" "}
+                      <option value="Processing">Processing</option>{" "}
+                      <option value="Shipped">Shipped</option>{" "}
+                      <option value="In Transit">In Transit</option>{" "}
+                      <option value="Delivered">Delivered</option>{" "}
+                      <option value="Cancelled">Cancelled</option>{" "}
+                      <option value="Returned">Returned</option>{" "}
+                    </select>{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Payment Status
-                    </label>
+                    </label>{" "}
                     <select
                       name="payment_status"
                       value={formState.payment_status}
                       onChange={handleChange}
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
                     >
-                      <option value="Unpaid">Unpaid</option>
-                      <option value="Paid">Paid</option>
-                      <option value="Pending">Pending</option>
-                      <option value="COD">COD</option>
-                      <option value="Refunded">Refunded</option>
-                    </select>
+                      {" "}
+                      <option value="Unpaid">Unpaid</option>{" "}
+                      <option value="Paid">Paid</option>{" "}
+                      <option value="Pending">Pending</option>{" "}
+                      <option value="COD">COD</option>{" "}
+                      <option value="Refunded">Refunded</option>{" "}
+                    </select>{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Payment Method
-                    </label>
+                    </label>{" "}
                     <select
                       name="payment_method"
                       value={formState.payment_method}
@@ -518,90 +557,103 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                       disabled={formState.payment_status === "COD"}
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2 disabled:opacity-50"
                     >
-                      <option value="Credit Card">Credit Card</option>
-                      <option value="Debit Card">Debit Card</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Net Banking">Net Banking</option>
-                      <option value="Wallet">Wallet</option>
-                      <option value="COD">COD</option>
-                    </select>
+                      {" "}
+                      <option value="Credit Card">Credit Card</option>{" "}
+                      <option value="Debit Card">Debit Card</option>{" "}
+                      <option value="UPI">UPI</option>{" "}
+                      <option value="Net Banking">Net Banking</option>{" "}
+                      <option value="Wallet">Wallet</option>{" "}
+                      <option value="COD">COD</option>{" "}
+                    </select>{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Shipping Provider
-                    </label>
+                    </label>{" "}
                     <select
                       name="shipping_provider"
                       value={formState.shipping_provider}
                       onChange={handleChange}
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
                     >
-                      <option value="Self-Delivery">Self-Delivery</option>
-                      <option value="BlueDart">BlueDart</option>
-                      <option value="Delhivery">Delhivery</option>
-                      <option value="DTDC">DTDC</option>
-                    </select>
+                      {" "}
+                      <option value="Self-Delivery">Self-Delivery</option>{" "}
+                      <option value="BlueDart">BlueDart</option>{" "}
+                      <option value="Delhivery">Delhivery</option>{" "}
+                      <option value="DTDC">DTDC</option>{" "}
+                    </select>{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Tracking ID
-                    </label>
+                    </label>{" "}
                     <input
                       name="tracking_id"
                       value={formState.tracking_id}
                       onChange={handleChange}
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                    />
+                    />{" "}
                   </div>
                   <div>
+                    {" "}
                     <label className="block text-xs text-zinc-400 mb-1">
                       Vehicle ID
-                    </label>
+                    </label>{" "}
                     <input
                       type="number"
                       name="vehicle_id"
                       value={formState.vehicle_id}
                       onChange={handleChange}
                       className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
-                    />
+                    />{" "}
                   </div>
                 </div>
               </fieldset>
+
+              {/* Order Summary Fieldset (no change) */}
               <fieldset className="border border-dashed border-zinc-600 p-4 rounded-lg">
                 <legend className="px-2 text-sm text-zinc-400 flex items-center gap-2">
-                  <TrendingUp size={14} /> Order Summary
+                  {" "}
+                  <TrendingUp size={14} /> Order Summary{" "}
                 </legend>
                 <dl className="space-y-2 text-sm">
                   <div className="flex justify-between items-center">
-                    <dt className="text-zinc-400">Subtotal</dt>
+                    {" "}
+                    <dt className="text-zinc-400">Subtotal</dt>{" "}
                     <dd className="font-mono">
                       {formatCurrency(orderTotals.subtotal)}
-                    </dd>
+                    </dd>{" "}
                   </div>
                   <div className="flex justify-between items-center text-red-400">
-                    <dt>Discount</dt>
+                    {" "}
+                    <dt>Discount</dt>{" "}
                     <dd className="font-mono">
                       -{formatCurrency(orderTotals.discountAmount)}
-                    </dd>
+                    </dd>{" "}
                   </div>
                   <div className="flex justify-between items-center">
-                    <dt className="text-zinc-400">Total GST</dt>
+                    {" "}
+                    <dt className="text-zinc-400">Total GST</dt>{" "}
                     <dd className="font-mono">
                       +{formatCurrency(orderTotals.totalGst)}
-                    </dd>
+                    </dd>{" "}
                   </div>
                   <div className="flex justify-between items-center">
-                    <dt className="text-zinc-400">Shipping</dt>
+                    {" "}
+                    <dt className="text-zinc-400">Shipping</dt>{" "}
                     <dd className="font-mono">
                       +{formatCurrency(orderTotals.shipping)}
-                    </dd>
+                    </dd>{" "}
                   </div>
                   <div className="border-t border-zinc-700 my-2"></div>
                   <div className="flex justify-between items-center text-lg font-bold">
-                    <dt>Total Amount</dt>
+                    {" "}
+                    <dt>Total Amount</dt>{" "}
                     <dd className="font-mono text-cyan-400">
                       {formatCurrency(orderTotals.totalAmount)}
-                    </dd>
+                    </dd>{" "}
                   </div>
                 </dl>
               </fieldset>
@@ -616,14 +668,16 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
               onClick={onClose}
               className="bg-zinc-700 hover:bg-zinc-600 text-white font-semibold py-2 px-4 rounded-lg"
             >
-              Cancel
+              {" "}
+              Cancel{" "}
             </button>
             <button
               type="submit"
               disabled={loading || formState.items.length === 0}
               className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50"
             >
-              {loading ? "Creating..." : "Create Order"}
+              {" "}
+              {loading ? "Creating..." : "Create Order"}{" "}
             </button>
           </div>
         </form>

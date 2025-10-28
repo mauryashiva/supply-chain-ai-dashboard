@@ -95,6 +95,7 @@ class Order(Base):
     order_date = Column(DateTime, default=datetime.datetime.utcnow)
     customer_name = Column(String, index=True)
     customer_email = Column(String, index=True)
+    phone_number = Column(String, nullable=True) # <-- YEH NAYA COLUMN HAI
     shipping_address = Column(String)
 
     # --- NEW FINANCIAL FIELDS ADDED ---
