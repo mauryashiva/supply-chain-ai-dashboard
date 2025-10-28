@@ -5,20 +5,23 @@ from sqlalchemy import func, cast, Date
 from sklearn.linear_model import LinearRegression
 import numpy as np
 from datetime import datetime, timedelta
-# --- CHANGE 1: 'Optional' ko import karein ---
 from typing import Optional
 
 from ..database import get_db
 from ..schemas import schemas
 from ..models import models
 
+# --- CHANGE 1: Naya "Security Guard" import karein ---
+from ..auth_deps import get_current_user_claims
+
 router = APIRouter()
 
 @router.get("/forecast", response_model=schemas.DemandForecast)
-# --- CHANGE 2: 'product_id' ko optional parameter ke taur par add karein ---
 def get_demand_forecast(
     product_id: Optional[int] = None, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
 ):
     """
     Generates a 30-day demand forecast.
@@ -36,7 +39,7 @@ def get_demand_forecast(
     ).join(models.OrderItem, models.OrderItem.order_id == models.Order.id)\
      .filter(cast(models.Order.order_date, Date) >= ninety_days_ago)
 
-    # --- CHANGE 3: Agar product_id hai, to query ko filter karein ---
+    # --- Agar product_id hai, to query ko filter karein ---
     if product_id:
         query = query.filter(models.OrderItem.product_id == product_id)
     
@@ -53,7 +56,6 @@ def get_demand_forecast(
     df['date'] = pd.to_datetime(df['date'])
     
     # Fill in missing dates with 0 quantity
-    # Isse model ko data mein 'gaps' nahi milenge
     date_range = pd.date_range(start=ninety_days_ago, end=datetime.utcnow().date(), freq='D')
     df = df.set_index('date').reindex(date_range, fill_value=0).reset_index().rename(columns={'index': 'date'})
     df['total_quantity'] = df['total_quantity'].astype(int)

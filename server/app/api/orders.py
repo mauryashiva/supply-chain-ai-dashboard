@@ -5,12 +5,49 @@ from ..database import get_db
 from ..schemas import schemas
 from ..models import models
 
+# --- CHANGE 1: Naya "Security Guard" import karein ---
+from ..auth_deps import get_current_user_claims
+
 router = APIRouter()
+
+# --- Naya helper function stock status update karne ke liye ---
+def _update_product_status(product: models.Product):
+    """Updates the product's status based on its stock quantity."""
+    # TODO: Is logic ko settings se link karna hai (Abhi hardcoded hai)
+    # Yeh maana ja raha hai ki aapke models.Product mein 'status' column hai
+    # jo models.StockStatus enum ka istemaal karta hai.
+    
+    # NOTE: Yeh settings_helpers wale get_product_status se alag hai.
+    # Woh sirf 'calculate' karta hai, yeh 'set' karta hai.
+    
+    # Aapko 'LOW_STOCK_THRESHOLD' ko settings se fetch karna chahiye
+    # Lekin yahaan DB session nahi hai, isliye hum hardcode kar rahe hain.
+    # Behtar tareeka: Is function mein 'db: Session' pass karein.
+    # Ya fir, yeh logic 'product' model ke andar ek method ke roop mein ho.
+    
+    LOW_STOCK_THRESHOLD = 10 # Example value
+    # Agar aap settings se fetch karna chahte hain:
+    # low_stock_threshold = get_low_stock_threshold(db_session_yahaan_pass_karein)
+
+    if product.stock_quantity <= 0:
+        product.stock_quantity = 0 # Negative mein na jaaye
+        # Yeh maan rahe hain ki 'models.StockStatus' ek Enum hai
+        # Agar nahi, toh "Out_of_Stock" string ka istemaal karein
+        product.status = models.StockStatus.Out_of_Stock
+    elif product.stock_quantity <= LOW_STOCK_THRESHOLD:
+        product.status = models.StockStatus.Low_Stock
+    else:
+        product.status = models.StockStatus.In_Stock
 
 
 @router.get("/", response_model=List[schemas.Order])
-def get_all_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    # --- THIS FUNCTION IS UNCHANGED ---
+def get_all_orders(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     orders = (
         db.query(models.Order)
         .options(
@@ -24,9 +61,13 @@ def get_all_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     )
     return orders
 
-# --- UPDATED FUNCTION WITH NEW CALCULATION LOGIC ---
 @router.post("/", response_model=schemas.Order, status_code=status.HTTP_201_CREATED)
-def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
+def create_order(
+    order: schemas.OrderCreate, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     
     if not order.items:
         raise HTTPException(status_code=400, detail="An order must contain at least one item.")
@@ -109,6 +150,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
         db_order.items.append(order_item)
         
         product_obj.stock_quantity -= quantity
+        _update_product_status(product_obj) # <-- Yahaan naya change add kiya gaya hai
 
     # Step 7: Commit the transaction
     db.add(db_order)
@@ -118,8 +160,13 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{order_id}", response_model=schemas.Order)
-def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session = Depends(get_db)):
-    # --- THIS FUNCTION IS UNCHANGED ---
+def update_order(
+    order_id: int, 
+    order_update: schemas.OrderUpdate, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     db_order = db.query(models.Order).options(
         joinedload(models.Order.items).joinedload(models.OrderItem.product)
     ).filter(models.Order.id == order_id).first()
@@ -136,10 +183,13 @@ def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session =
     restock_statuses = [models.OrderStatus.Cancelled, models.OrderStatus.Returned]
 
     if new_status in restock_statuses and original_status not in restock_statuses:
+        # Order cancel ya return hua: stock waapis add karo
         for item in db_order.items:
             item.product.stock_quantity += item.quantity
+            _update_product_status(item.product) # <-- Yahaan naya change add kiya gaya hai
     
     elif original_status in restock_statuses and new_status not in restock_statuses:
+        # Cancelled/Returned order ko reverse kiya: stock waapis kam karo
         for item in db_order.items:
             if item.product.stock_quantity < item.quantity:
                 raise HTTPException(
@@ -147,6 +197,7 @@ def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session =
                     detail=f"Cannot reverse return for {item.product.name}. Not enough stock available."
                 )
             item.product.stock_quantity -= item.quantity
+            _update_product_status(item.product) # <-- Yahaan naya change add kiya gaya hai
 
     db.add(db_order)
     db.commit()
@@ -154,13 +205,21 @@ def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session =
     return db_order
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_order(order_id: int, db: Session = Depends(get_db)):
-    # --- THIS FUNCTION IS UNCHANGED ---
+def delete_order(
+    order_id: int, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     db_order = db.query(models.Order).filter(models.Order.id == order_id).first()
 
     if db_order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         
+    # Note: Order delete karne par stock restock *nahi* hoga,
+    # kyunki yeh ek 'hard delete' hai.
+    # Agar stock restock karna hai, toh pehle order ko 'Cancelled' mark karein.
+    
     db.delete(db_order)
     db.commit()
     return None

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   BarChart2,
@@ -12,10 +12,13 @@ import {
   Menu,
   X,
   FileUp,
-  Brain, // --- CHANGE 1: Naya icon import karein ---
+  Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SettingsModal } from "@/components/settings/SettingsModal";
+
+// --- CHANGE 1: Clerk components ko import karein ---
+import { SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
 
 // NavItem Component (No Change)
 interface NavItemProps {
@@ -53,15 +56,15 @@ const NavItem: React.FC<NavItemProps> = ({
   </NavLink>
 );
 
-// --- CHANGE: Re-ordered navItems list ---
+// navItems list (No Change)
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/analytics", label: "Analytics", icon: BarChart2 },
-  { to: "/forecast", label: "AI Forecast", icon: Brain }, // Naya link
+  { to: "/forecast", label: "AI Forecast", icon: Brain },
   { to: "/orders", label: "Orders", icon: Package },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/logistics", label: "Logistics", icon: Truck },
-  { to: "/import", label: "Import / Export", icon: FileUp }, // Moved here
+  { to: "/import", label: "Import / Export", icon: FileUp },
   { to: "/users", label: "Users", icon: Users },
 ];
 
@@ -97,7 +100,6 @@ const MobileSidebar: React.FC<{
           </div>
           <div className="flex-1 overflow-y-auto">
             <nav className="grid items-start p-2 text-sm font-medium">
-              {/* Renders the updated navItems list */}
               {navItems.map((item) => (
                 <NavItem key={item.to} {...item} isExpanded={true} />
               ))}
@@ -109,112 +111,126 @@ const MobileSidebar: React.FC<{
   );
 };
 
-// Main DashboardLayout Component (No structural change)
+// --- Naya component: Logged-out user ko redirect karne ke liye ---
+const RedirectToLogin: React.FC = () => {
+  const navigate = useNavigate();
+  React.useEffect(() => {
+    navigate("/login");
+  }, [navigate]);
+  return null;
+};
+
+// Main DashboardLayout Component
 const DashboardLayout: React.FC = () => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  // --- CHANGE 1: "Refresh Signal" ke liye naya state ---
-  // Yeh ek simple counter hai. Jab bhi settings save hongi, hum is number ko badal denge.
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // --- CHANGE 2: Naya function jo settings save hone par call hoga ---
   const handleSettingsSave = () => {
-    setIsSettingsModalOpen(false); // Modal ko band karein
-    setRefreshKey((prevKey) => prevKey + 1); // Refresh signal ko trigger karein
+    setIsSettingsModalOpen(false);
+    setRefreshKey((prevKey) => prevKey + 1);
   };
 
   return (
     <>
-      {/* --- CHANGE 3: SettingsModal ko naya prop pass karein --- */}
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        // Jab modal save hoga, to hamara naya function call hoga
-        onSettingsSave={handleSettingsSave}
-      />
+      {/* --- CHANGE 2: Poore layout ko <SignedIn> se wrap karein --- */}
+      <SignedIn>
+        <SettingsModal
+          isOpen={isSettingsModalOpen}
+          onClose={() => setIsSettingsModalOpen(false)}
+          onSettingsSave={handleSettingsSave}
+        />
 
-      <div
-        className={cn(
-          "grid min-h-screen w-full bg-zinc-950 text-white transition-[grid-template-columns] duration-300 ease-in-out",
-          isSidebarExpanded
-            ? "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
-            : "md:grid-cols-[68px_1fr]"
-        )}
-      >
-        {/* --- DESKTOP SIDEBAR --- */}
-        <div className="hidden border-r border-zinc-800 bg-zinc-900/50 md:block">
-          <div className="flex h-full max-h-screen flex-col gap-2">
-            <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4 lg:h-[60px]">
-              <NavLink
-                to="/"
-                className="flex items-center gap-2 font-semibold overflow-hidden"
-              >
-                <Truck className="h-6 w-6 text-cyan-400 flex-shrink-0" />
-                <span
-                  className={cn(
-                    "whitespace-nowrap transition-opacity",
-                    isSidebarExpanded ? "opacity-100" : "opacity-0"
-                  )}
+        <div
+          className={cn(
+            "grid min-h-screen w-full bg-zinc-950 text-white transition-[grid-template-columns] duration-300 ease-in-out",
+            isSidebarExpanded
+              ? "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
+              : "md:grid-cols-[68px_1fr]"
+          )}
+        >
+          {/* --- DESKTOP SIDEBAR --- */}
+          <div className="hidden border-r border-zinc-800 bg-zinc-900/50 md:block">
+            <div className="flex h-full max-h-screen flex-col gap-2">
+              <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4 lg:h-[60px]">
+                <NavLink
+                  to="/"
+                  className="flex items-center gap-2 font-semibold overflow-hidden"
                 >
-                  SupplyChain AI
-                </span>
-              </NavLink>
-              <button
-                onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-                className="p-2 rounded-md hover:bg-zinc-700/50"
-              >
-                <PanelLeft
-                  className={cn(
-                    "h-5 w-5 transition-transform",
-                    !isSidebarExpanded && "rotate-180"
-                  )}
-                />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <nav className="grid items-start px-2 text-sm font-medium">
-                {/* Renders the updated navItems list */}
-                {navItems.map((item) => (
-                  <NavItem
-                    key={item.to}
-                    {...item}
-                    isExpanded={isSidebarExpanded}
+                  <Truck className="h-6 w-6 text-cyan-400 flex-shrink-0" />
+                  <span
+                    className={cn(
+                      "whitespace-nowrap transition-opacity",
+                      isSidebarExpanded ? "opacity-100" : "opacity-0"
+                    )}
+                  >
+                    SupplyChain AI
+                  </span>
+                </NavLink>
+                <button
+                  onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                  className="p-2 rounded-md hover:bg-zinc-700/50"
+                >
+                  <PanelLeft
+                    className={cn(
+                      "h-5 w-5 transition-transform",
+                      !isSidebarExpanded && "rotate-180"
+                    )}
                   />
-                ))}
-              </nav>
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <nav className="grid items-start px-2 text-sm font-medium">
+                  {navItems.map((item) => (
+                    <NavItem
+                      key={item.to}
+                      {...item}
+                      isExpanded={isSidebarExpanded}
+                    />
+                  ))}
+                </nav>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-col h-screen overflow-hidden">
-          <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-900/50 px-4 lg:h-[60px] lg:px-6">
-            <button
-              className="md:hidden p-2 -ml-2"
-              onClick={() => setIsMobileSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="w-full flex-1"></div>
-            <Bell className="h-5 w-5 text-zinc-400" />
-            <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="p-1 rounded-full hover:bg-zinc-700/50"
-              title="Settings"
-            >
-              <Settings className="h-5 w-5 text-zinc-400" />
-            </button>
-          </header>
-          {/* --- FIX: Removed the duplicate <Outlet /> --- */}
-          <main className="flex-1 p-4 sm:p-6 bg-zinc-950 overflow-auto">
-            <Outlet context={{ refreshKey }} />
-          </main>
+          <div className="flex flex-col h-screen overflow-hidden">
+            <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-900/50 px-4 lg:h-[60px] lg:px-6">
+              <button
+                className="md:hidden p-2 -ml-2"
+                onClick={() => setIsMobileSidebarOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="w-full flex-1"></div>
+
+              {/* --- CHANGE 3: Header icons ko update karein --- */}
+              <Bell className="h-5 w-5 text-zinc-400" />
+              <button
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="p-1 rounded-full hover:bg-zinc-700/50"
+                title="Settings"
+              >
+                <Settings className="h-5 w-5 text-zinc-400" />
+              </button>
+              {/* Clerk ka UserButton add karein (profile + logout) */}
+              <UserButton afterSignOutUrl="/login" />
+            </header>
+            <main className="flex-1 p-4 sm:p-6 bg-zinc-950 overflow-auto">
+              <Outlet context={{ refreshKey }} />
+            </main>
+          </div>
+          <MobileSidebar
+            isOpen={isMobileSidebarOpen}
+            onClose={() => setIsMobileSidebarOpen(false)}
+          />
         </div>
-        <MobileSidebar
-          isOpen={isMobileSidebarOpen}
-          onClose={() => setIsMobileSidebarOpen(false)}
-        />
-      </div>
+      </SignedIn>
+
+      {/* --- CHANGE 4: Agar user logged-out hai, to use login page par bhejein --- */}
+      <SignedOut>
+        <RedirectToLogin />
+      </SignedOut>
     </>
   );
 };

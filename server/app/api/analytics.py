@@ -11,7 +11,10 @@ import random
 from datetime import datetime, timedelta, date
 from calendar import month_abbr 
 
+# --- CHANGE 1: Naye helper functions ko import karein ---
 from ..utils.settings_helpers import get_low_stock_threshold
+# --- CHANGE 2: Naya "Security Guard" import karein ---
+from ..auth_deps import get_current_user_claims
 
 router = APIRouter()
 
@@ -30,7 +33,6 @@ class MonthlyRevenueResponse(BaseModel):
     data: List[MonthlyRevenueDataPoint]
 
 # --- (NEW) Schema for Low Stock Product Details ---
-# Yeh aapke Analytics page par list dikhane ke kaam aayega
 class LowStockProduct(BaseModel):
     name: str
     stock_quantity: int
@@ -43,7 +45,11 @@ class LowStockProductResponse(BaseModel):
 
 # --- /summary endpoint (UPDATED) ---
 @router.get("/summary", response_model=schemas.AnalyticsSummary)
-def get_analytics_summary(db: Session = Depends(get_db)):
+def get_analytics_summary(
+    db: Session = Depends(get_db),
+    # --- CHANGE 3: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Calculates and returns key analytics summary data from the database.
     """
@@ -120,7 +126,11 @@ def get_analytics_summary(db: Session = Depends(get_db)):
 
 # --- (NEW) ENDPOINT FOR LOW STOCK PRODUCT LIST ---
 @router.get("/low-stock-products", response_model=LowStockProductResponse)
-def get_low_stock_product_details(db: Session = Depends(get_db)):
+def get_low_stock_product_details(
+    db: Session = Depends(get_db),
+    # --- CHANGE 3: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Returns a list of products that are currently low stock based on the
     user-defined dynamic threshold.
@@ -148,11 +158,13 @@ def get_low_stock_product_details(db: Session = Depends(get_db)):
     return {"data": product_list}
 
 
-# --- /revenue-over-time endpoint (No change) ---
+# --- /revenue-over-time endpoint (No change in logic) ---
 @router.get("/revenue-over-time", response_model=RevenueOverTimeResponse)
 def get_revenue_over_time(
     days: int = 30, # Default to last 30 days
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    # --- CHANGE 3: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
 ):
     """
     Calculates total revenue grouped by date for the specified number of past days.
@@ -184,11 +196,13 @@ def get_revenue_over_time(
     return {"data": revenue_data}
 
 
-# --- /monthly-revenue endpoint (No change) ---
+# --- /monthly-revenue endpoint (No change in logic) ---
 @router.get("/monthly-revenue", response_model=MonthlyRevenueResponse)
 def get_monthly_revenue(
     months: int = 6, # Default to last 6 months
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    # --- CHANGE 3: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
 ):
     """
     Calculates total revenue grouped by month for the specified number of past months.

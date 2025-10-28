@@ -26,6 +26,24 @@ const apiClient = axios.create({
   },
 });
 
+// --- CHANGE 1: Naya Interceptor Add Karein ---
+// Yeh har request ko rokega aur usmein authentication token add karega
+apiClient.interceptors.request.use(
+  async (config) => {
+    // Clerk se session token haasil karein
+    // @ts-ignore - 'Clerk' global object ClerkProvider dwara inject kiya jaata hai
+    const token = await window.Clerk.session?.getToken();
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Type for Daily Revenue Data
 export interface RevenueDataPoint {
   date: string; // 'YYYY-MM-DD'

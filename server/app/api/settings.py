@@ -6,12 +6,19 @@ from ..database import get_db
 from ..schemas import schemas
 from ..models import models
 
+# --- CHANGE 1: Naya "Security Guard" import karein ---
+from ..auth_deps import get_current_user_claims
+
 router = APIRouter()
 
 # --- SETTINGS API ENDPOINTS ---
 
 @router.get("/", response_model=List[schemas.AppSetting])
-def get_all_settings(db: Session = Depends(get_db)):
+def get_all_settings(
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Database se saari app settings fetch karta hai.
     """
@@ -31,7 +38,12 @@ def get_all_settings(db: Session = Depends(get_db)):
     return settings
 
 @router.put("/", response_model=List[schemas.AppSetting])
-def update_settings(payload: schemas.AppSettingsUpdate, db: Session = Depends(get_db)):
+def update_settings(
+    payload: schemas.AppSettingsUpdate, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Ek saath multiple settings ko update ya create karta hai (upsert).
     """

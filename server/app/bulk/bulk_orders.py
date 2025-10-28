@@ -1,5 +1,3 @@
-# server/app/bulk/bulk_orders.py
-
 import csv
 import io
 import uuid
@@ -13,13 +11,12 @@ from ..database import get_db
 from ..schemas import schemas
 from ..models import models
 
-# --- NAYE IMPORTS ---
-# Helper function ko 'utils' se import kar rahe hain
+# --- Naye Imports ---
 from ..utils.settings_helpers import update_product_status_dynamically
-# Shared error reports ko 'utils' se import kar rahe hain
 from ..utils.report_store import error_reports
+# --- CHANGE 1: Naya "Security Guard" import karein ---
+from ..auth_deps import get_current_user_claims
 
-# Router ko prefix aur tags ke saath set karna clean rehta hai
 router = APIRouter(
     prefix="/bulk/orders",
     tags=["Bulk Orders"]
@@ -32,12 +29,14 @@ class OrderUploadResponse(BaseModel):
     errors: List[str]
     error_report_id: Optional[str] = None
 
-# --- HELPER FUNCTIONS YAHAN SE HATA DIYE GAYE HAIN ---
-
-
 # --- Orders CSV Upload ---
 @router.post("/upload-csv", response_model=OrderUploadResponse)
-async def upload_orders_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_orders_csv(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Bulk imports orders. If errors occur, stores failed rows
     and returns an ID to download them.
@@ -208,9 +207,9 @@ async def upload_orders_csv(file: UploadFile = File(...), db: Session = Depends(
                         db.add(order_item)
                         product.stock_quantity -= quantity
                         
-                        # --- IMPORTANT: IMPORTED FUNCTION KA ISTEMAL ---
-                        # '_update_product_status_local' ki jagah
-                        # update_product_status_dynamically(product, db)
+                        # --- DYNAMIC STATUS UPDATE ---
+                        # (Yeh function ab utils se import ho raha hai)
+                        update_product_status_dynamically(product, db)
 
                     orders_created_count += 1
 
@@ -273,7 +272,11 @@ async def upload_orders_csv(file: UploadFile = File(...), db: Session = Depends(
 
 # --- Orders Export Endpoint ---
 @router.get("/export-csv")
-async def export_orders_csv(db: Session = Depends(get_db)):
+async def export_orders_csv(
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Exports all orders and their items to a CSV file.
     """
@@ -337,7 +340,10 @@ async def export_orders_csv(db: Session = Depends(get_db)):
 
 # --- Template Download Endpoint ---
 @router.get("/template")
-async def download_orders_template():
+async def download_orders_template(
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Provides a CSV template file for orders import.
     """
@@ -359,7 +365,11 @@ async def download_orders_template():
 
 # --- Order Error Download Endpoint ---
 @router.get("/download-errors/{report_id}")
-async def download_order_errors(report_id: str):
+async def download_order_errors(
+    report_id: str,
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Downloads the specific rows that failed during a bulk order upload.
     """

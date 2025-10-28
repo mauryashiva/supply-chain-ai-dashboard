@@ -1,6 +1,3 @@
-# server/app/bulk/bulk_inventory.py
-# (FINAL CODE: 'status' column database se hataane ke baad)
-
 import csv
 import io
 import uuid
@@ -19,6 +16,9 @@ from ..utils.settings_helpers import get_low_stock_threshold, get_product_status
 # Shared error reports ko 'utils' se import kar rahe hain
 from ..utils.report_store import error_reports
 
+# --- CHANGE 1: Naya "Security Guard" import karein ---
+from ..auth_deps import get_current_user_claims
+
 router = APIRouter(
     prefix="/bulk/inventory",
     tags=["Bulk Inventory"]
@@ -32,7 +32,12 @@ class BulkUploadResponse(BaseModel):
     error_report_id: Optional[str] = None
 
 @router.post("/upload-csv", response_model=BulkUploadResponse)
-async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_inventory_csv(
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Imports/updates products. (Status column database se hata diya gaya hai)
     """
@@ -40,7 +45,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Invalid file type. Please upload a .csv file.")
 
-    low_stock_threshold = get_low_stock_threshold(db) # Iski zaroorat nahi hai yahan
     contents = await file.read()
     if not contents:
         raise HTTPException(status_code=400, detail="The file is empty.")
@@ -95,8 +99,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             continue
 
         try:
-            # --- STATUS LOGIC HATA DIYA GAYA ---
-            
             # 1. Stock ko lein
             stock = int(row.get("stock_quantity", 0))
             
@@ -122,7 +124,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
                 # 4a. UPDATE: ProductBase use karein
                 validated_data = schemas.ProductBase(**product_data_for_schema)
                 products_to_update.append(db_product)
-                # Status ko store na karein
                 update_data_map[sku] = {"data": validated_data}
                 updated_skus.append(sku)
             else:
@@ -146,8 +147,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
             row_copy["error_reason"] = error_reason
             failed_rows.append(row_copy)
 
-    # --- (Baaki ka code same hai) ---
-
     error_strings = [f"Line {i+2} (SKU: {row.get('sku', 'N/A')}): {row['error_reason']}" for i, row in enumerate(failed_rows)]
 
     if not products_to_add and not products_to_update and not failed_rows:
@@ -165,7 +164,6 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
                 
                 product.name = update_data.name
                 product.stock_quantity = update_data.stock_quantity
-                # --- STATUS LINE HATA DI GAYI ---
                 product.category = update_data.category
                 product.supplier = update_data.supplier
                 product.reorder_level = update_data.reorder_level
@@ -229,10 +227,12 @@ async def upload_inventory_csv(file: UploadFile = File(...), db: Session = Depen
         error_report_id=error_report_id
     )
 
-# --- (Baaki ke routes jaise hain waise hi rahenge) ---
-
 @router.get("/export-csv")
-async def export_inventory_csv(db: Session = Depends(get_db)):
+async def export_inventory_csv(
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Exports all inventory products to a CSV file.
     (Real-time status calculation)
@@ -278,7 +278,10 @@ async def export_inventory_csv(db: Session = Depends(get_db)):
     )
 
 @router.get("/template")
-async def download_inventory_template():
+async def download_inventory_template(
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Provides a CSV template file for inventory import.
     """
@@ -298,7 +301,11 @@ async def download_inventory_template():
     )
 
 @router.get("/download-errors/{report_id}")
-async def download_inventory_errors(report_id: str):
+async def download_inventory_errors(
+    report_id: str,
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     """
     Downloads failed rows from an inventory upload.
     """
@@ -310,7 +317,6 @@ async def download_inventory_errors(report_id: str):
     failed_rows = report_data.get("rows", [])
     original_headers = report_data.get("headers", [])
     
-    # Yahan se 'status' hata dein
     headers_with_error = [
         "name", "sku", "stock_quantity", "category", "supplier",
         "reorder_level", "cost_price", "selling_price", "gst_rate", "error_reason"

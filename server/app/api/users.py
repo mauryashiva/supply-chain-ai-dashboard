@@ -6,15 +6,29 @@ from ..schemas import schemas
 from ..models import models
 from .. import security
 
+# --- CHANGE 1: Naya "Security Guard" import karein ---
+from ..auth_deps import get_current_user_claims
+
 router = APIRouter()
 
 @router.get("/", response_model=List[schemas.User])
-def get_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def get_all_users(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     users = db.query(models.User).offset(skip).limit(limit).all()
     return users
 
 @router.post("/", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(
+    user: schemas.UserCreate, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(
@@ -29,17 +43,19 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(db_user)
     return db_user
 
-# --- UPDATE: Naya Function User ko Update Karne ke liye ---
 @router.put("/{user_id}", response_model=schemas.User)
-def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db)):
-    # Pehle database se us user ko dhoondho
+def update_user(
+    user_id: int, 
+    user_update: schemas.UserUpdate, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
     
-    # Agar user nahi milta, to 404 error bhejo
     if db_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         
-    # Frontend se aaye data ko loop karke update karo
     update_data = user_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_user, key, value)
@@ -49,18 +65,18 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
     db.refresh(db_user)
     return db_user
 
-# --- UPDATE: Naya Function User ko Delete Karne ke liye ---
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, db: Session = Depends(get_db)):
-    # Pehle database se us user ko dhoondho
+def delete_user(
+    user_id: int, 
+    db: Session = Depends(get_db),
+    # --- CHANGE 2: Endpoint ko secure karein ---
+    user_claims: dict = Depends(get_current_user_claims)
+):
     db_user = db.query(models.User).filter(models.User.id == user_id).first()
 
-    # Agar user nahi milta, to 404 error bhejo
     if db_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         
     db.delete(db_user)
     db.commit()
-    # 204 status code ke saath koi content return nahi hota hai
     return None
-
