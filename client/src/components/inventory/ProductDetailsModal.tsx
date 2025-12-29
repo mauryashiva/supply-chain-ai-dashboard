@@ -9,21 +9,25 @@ import {
   DollarSign,
   Bell,
   Calendar,
-  Percent, // --- CHANGE 1: Import the Percent icon ---
+  Percent, // Import the Percent icon for GST Rate
 } from "lucide-react";
 import type { Product } from "@/types";
 import { StockStatusBadge } from "./InventoryComponents";
-import { Carousel } from "react-responsive-carousel";
-import "react-responsive-carousel/lib/styles/carousel.min.css";
-import { ModalLayout } from "@/layouts/ModalLayout";
+import { Carousel } from "react-responsive-carousel"; // Import the carousel component
+import "react-responsive-carousel/lib/styles/carousel.min.css"; // Import carousel styles
+import { ModalLayout } from "@/layouts/ModalLayout"; // Import the reusable modal layout
 
+// Define props for the ProductDetailsModal
 interface ProductDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   product: Product | null;
 }
 
-// Helper component for displaying detail items
+/**
+ * A small, reusable helper component to display a single piece of detail
+ * with an icon, a label, and a value.
+ */
 const DetailItem: React.FC<{
   icon: React.ElementType;
   label: string;
@@ -35,18 +39,25 @@ const DetailItem: React.FC<{
       {label}
     </dt>
     <dd className="mt-1.5 text-sm font-semibold text-white">
+      {/* Show N/A in a lighter color if the value is falsy */}
       {value || <span className="text-zinc-500">N/A</span>}
     </dd>
   </div>
 );
 
+/**
+ * A modal component that displays all details for a selected product,
+ * including an image/video carousel and a grid of product attributes.
+ */
 export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   isOpen,
   onClose,
   product,
 }) => {
+  // If the modal isn't open or no product is selected, render nothing
   if (!isOpen || !product) return null;
 
+  // Helper function to format numbers as Indian Rupees (₹)
   const formatCurrency = (amount?: number) => {
     if (typeof amount !== "number") return "N/A";
     return new Intl.NumberFormat("en-IN", {
@@ -55,22 +66,25 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
     }).format(amount);
   };
 
+  // Helper function to format date strings
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
     return dayjs(dateString).format("DD MMM YYYY, h:mm A");
   };
 
+  // Calculate the total value of the stock (cost price * quantity)
   const stockValue = (product.cost_price || 0) * product.stock_quantity;
 
   return (
     <ModalLayout
       isOpen={isOpen}
       onClose={onClose}
-      title={product.name}
+      title={product.name} // The product name is used as the modal title
       size="max-w-3xl"
     >
       <div>
         <div className="flex flex-col md:flex-row items-start gap-8">
+          {/* Image/Video Carousel: Only shown if there are images */}
           {product.images && product.images.length > 0 && (
             <div className="w-full md:w-1/3">
               <Carousel
@@ -81,6 +95,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               >
                 {product.images.map((media) => (
                   <div key={media.id} className="aspect-square bg-black">
+                    {/* Conditionally render an <img> or <video> tag */}
                     {media.media_type === "image" ? (
                       <img
                         src={media.media_url}
@@ -100,6 +115,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
             </div>
           )}
 
+          {/* Details Grid: Takes up full width or 2/3 width if carousel is present */}
           <div
             className={
               product.images && product.images.length > 0
@@ -111,6 +127,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               SKU: {product.sku}
             </p>
 
+            {/* A grid layout for all product attributes */}
             <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5 bg-zinc-800/50 p-4 rounded-lg">
               <DetailItem
                 icon={Package}
@@ -137,7 +154,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                 label="Selling Price"
                 value={formatCurrency(product.selling_price)}
               />
-              {/* --- CHANGE 2: Added a DetailItem to display the GST Rate --- */}
+              {/* Added a DetailItem to display the GST Rate */}
               <DetailItem
                 icon={Percent}
                 label="GST Rate"
@@ -171,6 +188,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
           </div>
         </div>
 
+        {/* AI Description: Conditionally rendered if it exists */}
         {product.description && (
           <div className="mt-8 border-t border-zinc-800 pt-6">
             <h3 className="text-sm font-medium text-zinc-400 mb-3">

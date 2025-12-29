@@ -1,6 +1,5 @@
-# server/app/utils/report_store.py
-
 from typing import Dict, Any
 
-# Yeh shared in-memory storage hai jise inventory aur orders, dono use karenge
+# A shared, in-memory store for holding temporary error reports (e.g., CSV import errors)
+# This dictionary maps a report_id (str) to the report data.
 error_reports: Dict[str, Dict[str, Any]] = {}

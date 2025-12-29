@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload  # For eager-loading related models
 from typing import List
 from ..database import get_db
 from ..schemas import schemas
@@ -10,10 +10,13 @@ router = APIRouter()
 
 @router.get("/", response_model=List[schemas.Order])
 def get_all_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    # --- THIS FUNCTION IS UNCHANGED ---
+    """
+    Fetches all orders, eager-loading item and product details.
+    """
     orders = (
         db.query(models.Order)
         .options(
+            # Eager load items, and within items, eager load the product
             joinedload(models.Order.items)
             .joinedload(models.OrderItem.product)
         )
@@ -24,16 +27,19 @@ def get_all_orders(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     )
     return orders
 
-# --- UPDATED FUNCTION WITH NEW CALCULATION LOGIC ---
 @router.post("/", response_model=schemas.Order, status_code=status.HTTP_201_CREATED)
 def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
+    """
+    Creates a new order, validates stock, and calculates all financial totals
+    (subtotal, discount, GST, and final total) on the server.
+    """
     
     if not order.items:
         raise HTTPException(status_code=400, detail="An order must contain at least one item.")
 
     subtotal = 0
     total_gst = 0
-    order_products_details = []
+    order_products_details = []  # To temporarily store product info for calculations
 
     # Step 1: Validate products, check stock, and calculate subtotal
     for item_data in order.items:
@@ -75,11 +81,13 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
         item_total_price = item["item_total_price"]
         product_obj = item["product_obj"]
         
+        # Calculate this item's proportional share of the discount
         item_discount = 0
         if subtotal > 0 and total_discount_amount > 0:
             item_share_of_subtotal = item_total_price / subtotal
             item_discount = item_share_of_subtotal * total_discount_amount
         
+        # Calculate GST on the post-discount (taxable) value
         taxable_value = item_total_price - item_discount
         item_gst = taxable_value * (product_obj.gst_rate / 100)
         total_gst += item_gst
@@ -91,7 +99,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
     client_data = order.model_dump(exclude_unset=True, exclude={"items"})
     
     db_order_data = {
-        **client_data, # Includes user-provided fields like status, payment_status etc.
+        **client_data,  # Includes fields like status, payment_status, customer_name, etc.
         "subtotal": round(subtotal, 2),
         "total_gst": round(total_gst, 2),
         "total_amount": round(total_amount, 2),
@@ -99,7 +107,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
     
     db_order = models.Order(**db_order_data)
 
-    # Step 6: Create OrderItem objects and update product stock
+    # Step 6: Create OrderItem objects, link them to the order, and update product stock
     for item in order_products_details:
         product_obj = item["product_obj"]
         quantity = item["quantity"]
@@ -108,6 +116,7 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
         order_item.product = product_obj
         db_order.items.append(order_item)
         
+        # Deduct stock
         product_obj.stock_quantity -= quantity
 
     # Step 7: Commit the transaction
@@ -119,7 +128,10 @@ def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
 
 @router.put("/{order_id}", response_model=schemas.Order)
 def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session = Depends(get_db)):
-    # --- THIS FUNCTION IS UNCHANGED ---
+    """
+    Updates an order's fulfillment status (status, payment, tracking, etc.).
+    Also handles restocking items if an order is Cancelled or Returned.
+    """
     db_order = db.query(models.Order).options(
         joinedload(models.Order.items).joinedload(models.OrderItem.product)
     ).filter(models.Order.id == order_id).first()
@@ -127,21 +139,26 @@ def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session =
     if db_order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         
-    original_status = db_order.status
+    original_status = db_order.status  # Store the status before updates
     update_data = order_update.model_dump(exclude_unset=True)
+    
     for key, value in update_data.items():
         setattr(db_order, key, value)
         
     new_status = db_order.status
     restock_statuses = [models.OrderStatus.Cancelled, models.OrderStatus.Returned]
 
+    # Handle stock adjustment if status changed to or from a restock-required status
     if new_status in restock_statuses and original_status not in restock_statuses:
+        # Order was just cancelled/returned, add stock back
         for item in db_order.items:
             item.product.stock_quantity += item.quantity
     
     elif original_status in restock_statuses and new_status not in restock_statuses:
+        # Order was previously cancelled/returned and is now being re-opened
         for item in db_order.items:
             if item.product.stock_quantity < item.quantity:
+                # Check if there is enough stock to "un-cancel"
                 raise HTTPException(
                     status_code=400,
                     detail=f"Cannot reverse return for {item.product.name}. Not enough stock available."
@@ -155,7 +172,9 @@ def update_order(order_id: int, order_update: schemas.OrderUpdate, db: Session =
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_order(order_id: int, db: Session = Depends(get_db)):
-    # --- THIS FUNCTION IS UNCHANGED ---
+    """
+    Deletes an order from the database.
+    """
     db_order = db.query(models.Order).filter(models.Order.id == order_id).first()
 
     if db_order is None:

@@ -4,8 +4,8 @@ import { StatusBadge } from "./OrderComponents";
 import type { Order } from "@/types";
 
 /**
- * Yeh component sirf Orders ki table ko display karta hai.
- * Iska kaam data ko lena aur use ek saaf-suthre table format mein dikhana hai.
+ * This component is responsible for displaying the list of orders in a table.
+ * It takes in data and renders it in a clean table format.
  */
 
 interface OrderTableProps {
@@ -25,11 +25,14 @@ export const OrderTable: React.FC<OrderTableProps> = ({
   onEdit,
   onDelete,
 }) => {
+  // Helper function to format currency to INR (₹)
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
     }).format(amount);
+
+  // Helper function to format date strings (e.g., "29 Oct 2025")
   const formatDate = (dateString: string) =>
     new Date(dateString).toLocaleDateString("en-US", {
       day: "2-digit",
@@ -63,6 +66,7 @@ export const OrderTable: React.FC<OrderTableProps> = ({
           </tr>
         </thead>
         <tbody className="bg-zinc-900 divide-y divide-zinc-800">
+          {/* Show a loading state while data is being fetched */}
           {loading ? (
             <tr>
               <td colSpan={6} className="text-center py-8 text-zinc-400">
@@ -70,6 +74,7 @@ export const OrderTable: React.FC<OrderTableProps> = ({
               </td>
             </tr>
           ) : error ? (
+            // Show an error message if fetching fails
             <tr>
               <td colSpan={6} className="text-center py-8 text-red-400">
                 <div className="flex justify-center items-center gap-2">
@@ -78,12 +83,14 @@ export const OrderTable: React.FC<OrderTableProps> = ({
               </td>
             </tr>
           ) : orders.length === 0 ? (
+            // Show a message if no orders are found
             <tr>
               <td colSpan={6} className="text-center py-8 text-zinc-400">
                 No orders found.
               </td>
             </tr>
           ) : (
+            // Map over the orders and render a table row for each
             orders.map((order) => (
               <tr key={order.id} className="hover:bg-zinc-800/50">
                 <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-cyan-400">
@@ -102,6 +109,7 @@ export const OrderTable: React.FC<OrderTableProps> = ({
                   <StatusBadge status={order.status} />
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  {/* Action buttons for each row */}
                   <div className="flex items-center justify-end gap-3">
                     <button
                       onClick={() => onView(order)}

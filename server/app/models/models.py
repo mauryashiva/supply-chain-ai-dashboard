@@ -2,17 +2,18 @@ from sqlalchemy import (
     Column, Integer, String, Float, DateTime, Enum, Boolean, ForeignKey, Text
 )
 from sqlalchemy.orm import relationship
-from ..database import Base
+from ..database import Base  # Import the declarative base from database config
 import enum
 import datetime
 
 # --- Enums ---
+# Define Python enums that will be used for database ENUM types.
 
 class UserRole(str, enum.Enum):
     admin = "admin"
     user = "user"
 
-# NEW: Enum for Discount Type
+# Enum for Discount Type
 class DiscountType(str, enum.Enum):
     percentage = "percentage"
     fixed = "fixed"
@@ -29,6 +30,8 @@ class PaymentMethod(str, enum.Enum):
 class ShippingProvider(str, enum.Enum):
     Self_Delivery = "Self-Delivery"; BlueDart = "BlueDart"; Delhivery = "Delhivery"; DTDC = "DTDC"
 
+# This Enum is defined but the corresponding column in Product is commented out,
+# as status is calculated dynamically.
 class StockStatus(str, enum.Enum):
     In_Stock = "In Stock"; Low_Stock = "Low Stock"; Out_of_Stock = "Out of Stock"
 
@@ -37,15 +40,19 @@ class MediaType(str, enum.Enum):
 
 
 # --- Association & Other Models ---
+
+# Association table for the many-to-many relationship between Orders and Products
 class OrderItem(Base):
     __tablename__ = 'order_items'
     order_id = Column(Integer, ForeignKey('orders.id'), primary_key=True)
     product_id = Column(Integer, ForeignKey('products.id'), primary_key=True)
     quantity = Column(Integer, nullable=False)
     
+    # Relationships to link back to Order and Product models
     order = relationship("Order", back_populates="items")
     product = relationship("Product")
 
+# Model to store product images and videos, linked to a Product
 class ProductImage(Base):
     __tablename__ = 'product_images'
     id = Column(Integer, primary_key=True, index=True)
@@ -58,6 +65,7 @@ class ProductImage(Base):
 
 # --- Main Table Models ---
 
+# User model for authentication and roles
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -67,6 +75,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     hashed_password = Column(String)
 
+# Product model for inventory items
 class Product(Base):
     __tablename__ = "products"
     
@@ -74,6 +83,7 @@ class Product(Base):
     name = Column(String, index=True)
     sku = Column(String, unique=True, index=True)
     stock_quantity = Column(Integer)
+    # The 'status' column is commented out because it's calculated dynamically.
     # status = Column(Enum(StockStatus))
     
     description = Column(Text, nullable=True)
@@ -86,25 +96,27 @@ class Product(Base):
     
     last_restocked = Column(DateTime, nullable=True)
 
+    # One-to-many relationship with ProductImage
+    # 'cascade="all, delete-orphan"' ensures images are deleted when a product is deleted.
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
 
-
+# Order model for customer orders
 class Order(Base):
     __tablename__ = "orders"
     id = Column(Integer, primary_key=True, index=True)
     order_date = Column(DateTime, default=datetime.datetime.utcnow)
     customer_name = Column(String, index=True)
     customer_email = Column(String, index=True)
-    phone_number = Column(String, nullable=True) # <-- YEH NAYA COLUMN HAI
+    phone_number = Column(String, nullable=True) # Optional phone number
     shipping_address = Column(String)
 
-    # --- NEW FINANCIAL FIELDS ADDED ---
-    subtotal = Column(Float) # The total price of items before any discounts or taxes.
-    discount_value = Column(Float, default=0.0) # The value of the discount (e.g., 10 for 10% or 100 for ₹100).
-    discount_type = Column(Enum(DiscountType), nullable=True) # The type of discount ('percentage' or 'fixed').
+    # --- NEW FINANCIAL FIELDS (Calculated by the server on creation) ---
+    subtotal = Column(Float) # The total price of items before discounts or taxes.
+    discount_value = Column(Float, default=0.0) # The value of the discount.
+    discount_type = Column(Enum(DiscountType), nullable=True) # 'percentage' or 'fixed'.
     total_gst = Column(Float) # The total calculated GST amount for the order.
     shipping_charges = Column(Float, default=0.0) # Shipping costs for the order.
-    total_amount = Column(Float) # The final payable amount. (Replaces old 'amount' field).
+    total_amount = Column(Float) # The final payable amount.
     # --- END OF NEW FIELDS ---
 
     payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.Unpaid)
@@ -113,8 +125,11 @@ class Order(Base):
     shipping_provider = Column(Enum(ShippingProvider), nullable=True)
     tracking_id = Column(String, nullable=True, index=True)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=True)
+    
+    # Relationship to OrderItem association table
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
+# Vehicle model for logistics and tracking
 class Vehicle(Base):
     __tablename__ = "vehicles"
     id = Column(Integer, primary_key=True, index=True)
@@ -122,11 +137,12 @@ class Vehicle(Base):
     driver_name = Column(String)
     latitude = Column(Float)
     longitude = Column(Float)
-    status = Column(String, default="Idle")
+    status = Column(String, default="Idle") # Could be an Enum(VehicleStatus)
     live_temp = Column(Float)
     orders_count = Column(Integer)
     fuel_level = Column(Float)
 
+# Model for storing application-wide settings (e.g., low stock threshold)
 class AppSettings(Base):
     __tablename__ = 'app_settings'
     

@@ -1,15 +1,15 @@
 import React, { useEffect, useState, type FormEvent } from "react";
-// REMOVED: The 'X' icon is no longer needed here as it's handled by the layout.
+// 'X' icon is no longer imported, as the layout handles the close button
 import type { Order, OrderUpdate } from "@/types";
 import { updateOrder } from "@/services/api";
-// ADDED: Importing the new reusable ModalLayout component.
+// Import the reusable ModalLayout component
 import { ModalLayout } from "@/layouts/ModalLayout";
 
 interface EditOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  order: Order | null;
-  onOrderUpdated: (updatedOrder: Order) => void;
+  order: Order | null; // The order object to be edited
+  onOrderUpdated: (updatedOrder: Order) => void; // Callback function on successful update
 }
 
 export const EditOrderModal: React.FC<EditOrderModalProps> = ({
@@ -18,12 +18,17 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
   order,
   onOrderUpdated,
 }) => {
+  // State to hold the fields that can be edited
   const [formData, setFormData] = useState<OrderUpdate>({});
+  // State for displaying submission errors
   const [error, setError] = useState<string | null>(null);
+  // State for managing the submit button's loading spinner
   const [loading, setLoading] = useState(false);
 
+  // Effect to populate the form when the 'order' prop changes (or modal opens)
   useEffect(() => {
     if (order) {
+      // Set the form data from the currently selected order
       setFormData({
         status: order.status,
         payment_status: order.payment_status,
@@ -32,8 +37,9 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
         vehicle_id: order.vehicle_id,
       });
     }
-  }, [order]);
+  }, [order]); // Re-run this effect if the order object changes
 
+  // Generic change handler for all inputs and selects
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -41,35 +47,39 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
     setFormData({ ...formData, [name]: value });
   };
 
+  // Handle the form submission to update the order
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!order) return;
+    if (!order) return; // Guard clause
     setLoading(true);
     setError(null);
     try {
+      // Prepare payload, ensuring vehicle_id is a number or undefined
       const payload = {
         ...formData,
         vehicle_id: Number(formData.vehicle_id) || undefined,
       };
+      // Call the API to update the order
       const response = await updateOrder(order.id, payload);
+      // Notify the parent component of the successful update
       onOrderUpdated(response.data);
-      onClose();
+      onClose(); // Close the modal on success
     } catch (err: any) {
-      // --- CATCH BLOCK KO IS NAYI LOGIC SE UPDATE KAREIN ---
+      // --- Enhanced error handling logic ---
       if (
         err.response?.data?.detail &&
         Array.isArray(err.response.data.detail)
       ) {
-        // Agar Pydantic ka detailed error hai
+        // Handle Pydantic's detailed validation errors (which come as an array)
         const firstError = err.response.data.detail[0];
-        const field = firstError.loc[1] || "input";
-        const msg = firstError.msg;
+        const field = firstError.loc[1] || "input"; // Get the field name
+        const msg = firstError.msg; // Get the error message
         setError(`Error in '${field}': ${msg}`);
       } else if (err.response?.data?.detail) {
-        // Agar backend se simple text error hai
+        // Handle simple string errors from the backend
         setError(err.response.data.detail);
       } else {
-        // Fallback error
+        // Fallback for generic network or other errors
         setError("Failed to update order. Please try again.");
       }
     } finally {
@@ -77,19 +87,16 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
     }
   };
 
-  // REMOVED: The check for 'isOpen' and 'order' is now handled by ModalLayout.
-  // if (!isOpen || !order) return null;
-
-  // CHANGED: The entire JSX is now wrapped in the ModalLayout component.
-  // The layout handles the backdrop, close button, and click-outside-to-close logic.
+  // The ModalLayout handles the 'isOpen' and 'onClose' logic.
+  // We pass 'isOpen && !!order' to ensure the modal only opens if an order is actually selected.
   return (
     <ModalLayout
-      isOpen={isOpen && !!order} // The modal should only be open if there is an order to edit.
+      isOpen={isOpen && !!order}
       onClose={onClose}
-      title={`Edit Order #${order?.id}`} // The title is passed as a prop.
-      size="max-w-md" // The size is passed as a prop.
+      title={`Edit Order #${order?.id}`} // Pass the dynamic title to the layout
+      size="max-w-md" // Pass the desired size to the layout
     >
-      {/* The form is now passed as 'children' to the ModalLayout. */}
+      {/* The form is passed as 'children' to ModalLayout */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-zinc-400 mb-1">
@@ -167,7 +174,11 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
             className="w-full bg-zinc-800 border-zinc-700 rounded-lg px-3 py-2"
           />
         </div>
+
+        {/* Display any submission errors here */}
         {error && <p className="text-red-400 text-sm">{error}</p>}
+
+        {/* Form action buttons */}
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"

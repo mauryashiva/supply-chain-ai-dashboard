@@ -12,19 +12,23 @@ import {
   Menu,
   X,
   FileUp,
-  Brain, // --- CHANGE 1: Naya icon import karein ---
+  Brain, // Import the new icon for AI Forecast
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { SettingsModal } from "@/components/settings/SettingsModal";
+import { cn } from "@/lib/utils"; // Utility for combining class names
+import { SettingsModal } from "@/components/settings/SettingsModal"; // Modal for application settings
 
-// NavItem Component (No Change)
+// Interface for navigation item props
 interface NavItemProps {
-  to: string;
-  icon: React.ElementType;
-  label: string;
-  isExpanded: boolean;
+  to: string; // The route path
+  icon: React.ElementType; // The icon component
+  label: string; // The text label
+  isExpanded: boolean; // Whether the sidebar is expanded or collapsed
 }
 
+/**
+ * Reusable navigation link component for the sidebar.
+ * Handles active state styling and adapts based on sidebar expansion.
+ */
 const NavItem: React.FC<NavItemProps> = ({
   to,
   icon: Icon,
@@ -33,11 +37,12 @@ const NavItem: React.FC<NavItemProps> = ({
 }) => (
   <NavLink
     to={to}
+    // Dynamically apply classes based on active state and sidebar expansion
     className={({ isActive }: { isActive: boolean }) =>
       cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-zinc-400 transition-all hover:text-white hover:bg-zinc-700/50",
-        isActive && "bg-zinc-700 text-white",
-        !isExpanded && "justify-center"
+        isActive && "bg-zinc-700 text-white", // Active link style
+        !isExpanded && "justify-center" // Center icon when collapsed
       )
     }
   >
@@ -45,6 +50,7 @@ const NavItem: React.FC<NavItemProps> = ({
     <span
       className={cn(
         "overflow-hidden transition-all",
+        // Conditionally show/hide the label based on expansion
         isExpanded ? "w-full" : "w-0"
       )}
     >
@@ -53,39 +59,46 @@ const NavItem: React.FC<NavItemProps> = ({
   </NavLink>
 );
 
-// --- CHANGE: Re-ordered navItems list ---
+// Define the navigation items for the sidebar
+// Re-ordered and added "AI Forecast"
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/analytics", label: "Analytics", icon: BarChart2 },
-  { to: "/forecast", label: "AI Forecast", icon: Brain }, // Naya link
+  { to: "/forecast", label: "AI Forecast", icon: Brain }, // New AI Forecast link
   { to: "/orders", label: "Orders", icon: Package },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/logistics", label: "Logistics", icon: Truck },
-  { to: "/import", label: "Import / Export", icon: FileUp }, // Moved here
+  { to: "/import", label: "Import / Export", icon: FileUp }, // Moved Import/Export
   { to: "/users", label: "Users", icon: Users },
 ];
 
-// Mobile Sidebar Component (No Change)
+/**
+ * Sidebar component specifically designed for mobile viewports.
+ * Slides in from the left.
+ */
 const MobileSidebar: React.FC<{
   isOpen: boolean;
   onClose: () => void;
 }> = ({ isOpen, onClose }) => {
   return (
+    // Backdrop overlay
     <div
       className={cn(
         "fixed inset-0 z-50 bg-black/60 transition-opacity md:hidden",
         isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
       )}
-      onClick={onClose}
+      onClick={onClose} // Close sidebar on backdrop click
     >
+      {/* Sidebar panel */}
       <div
         className={cn(
           "absolute left-0 top-0 h-full w-72 bg-zinc-900 border-r border-zinc-800 transition-transform duration-300 ease-in-out",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          isOpen ? "translate-x-0" : "-translate-x-full" // Slide animation
         )}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the panel
       >
         <div className="flex h-full max-h-screen flex-col gap-2">
+          {/* Mobile Sidebar Header */}
           <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
             <NavLink to="/" className="flex items-center gap-2 font-semibold">
               <Truck className="h-6 w-6 text-cyan-400" />
@@ -95,9 +108,10 @@ const MobileSidebar: React.FC<{
               <X className="h-5 w-5" />
             </button>
           </div>
+          {/* Scrollable Navigation Area */}
           <div className="flex-1 overflow-y-auto">
             <nav className="grid items-start p-2 text-sm font-medium">
-              {/* Renders the updated navItems list */}
+              {/* Render navigation items (always expanded on mobile) */}
               {navItems.map((item) => (
                 <NavItem key={item.to} {...item} isExpanded={true} />
               ))}
@@ -109,42 +123,51 @@ const MobileSidebar: React.FC<{
   );
 };
 
-// Main DashboardLayout Component (No structural change)
+/**
+ * The main layout component for the entire dashboard.
+ * Includes the desktop/mobile sidebars, header, and main content area.
+ */
 const DashboardLayout: React.FC = () => {
+  // State for controlling desktop sidebar expansion
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+  // State for controlling mobile sidebar visibility
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  // State for controlling the settings modal visibility
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  // --- CHANGE 1: "Refresh Signal" ke liye naya state ---
-  // Yeh ek simple counter hai. Jab bhi settings save hongi, hum is number ko badal denge.
+  // State acting as a "refresh signal" for child routes using Outlet context.
+  // Incrementing this key triggers effects in child components that depend on settings.
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // --- CHANGE 2: Naya function jo settings save hone par call hoga ---
+  // Callback function passed to SettingsModal. Called when settings are successfully saved.
   const handleSettingsSave = () => {
-    setIsSettingsModalOpen(false); // Modal ko band karein
-    setRefreshKey((prevKey) => prevKey + 1); // Refresh signal ko trigger karein
+    setIsSettingsModalOpen(false); // Close the settings modal
+    setRefreshKey((prevKey) => prevKey + 1); // Trigger the refresh signal by incrementing the key
   };
 
   return (
     <>
-      {/* --- CHANGE 3: SettingsModal ko naya prop pass karein --- */}
+      {/* Settings Modal (rendered outside the main grid) */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        // Jab modal save hoga, to hamara naya function call hoga
+        // Pass the callback function to handle successful save
         onSettingsSave={handleSettingsSave}
       />
 
+      {/* Main Grid Layout */}
       <div
         className={cn(
           "grid min-h-screen w-full bg-zinc-950 text-white transition-[grid-template-columns] duration-300 ease-in-out",
+          // Adjust grid columns based on desktop sidebar state
           isSidebarExpanded
-            ? "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]"
-            : "md:grid-cols-[68px_1fr]"
+            ? "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]" // Expanded state
+            : "md:grid-cols-[68px_1fr]" // Collapsed state
         )}
       >
-        {/* --- DESKTOP SIDEBAR --- */}
+        {/* --- DESKTOP SIDEBAR --- (Hidden on small screens) */}
         <div className="hidden border-r border-zinc-800 bg-zinc-900/50 md:block">
           <div className="flex h-full max-h-screen flex-col gap-2">
+            {/* Desktop Sidebar Header */}
             <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4 lg:h-[60px]">
               <NavLink
                 to="/"
@@ -154,12 +177,13 @@ const DashboardLayout: React.FC = () => {
                 <span
                   className={cn(
                     "whitespace-nowrap transition-opacity",
-                    isSidebarExpanded ? "opacity-100" : "opacity-0"
+                    isSidebarExpanded ? "opacity-100" : "opacity-0" // Fade label in/out
                   )}
                 >
                   SupplyChain AI
                 </span>
               </NavLink>
+              {/* Sidebar expand/collapse button */}
               <button
                 onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
                 className="p-2 rounded-md hover:bg-zinc-700/50"
@@ -167,14 +191,15 @@ const DashboardLayout: React.FC = () => {
                 <PanelLeft
                   className={cn(
                     "h-5 w-5 transition-transform",
-                    !isSidebarExpanded && "rotate-180"
+                    !isSidebarExpanded && "rotate-180" // Rotate icon when collapsed
                   )}
                 />
               </button>
             </div>
+            {/* Scrollable Navigation Area */}
             <div className="flex-1 overflow-y-auto">
               <nav className="grid items-start px-2 text-sm font-medium">
-                {/* Renders the updated navItems list */}
+                {/* Render navigation items, passing the expansion state */}
                 {navItems.map((item) => (
                   <NavItem
                     key={item.to}
@@ -187,15 +212,20 @@ const DashboardLayout: React.FC = () => {
           </div>
         </div>
 
+        {/* --- MAIN CONTENT AREA --- */}
         <div className="flex flex-col h-screen overflow-hidden">
+          {/* Header Bar */}
           <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-900/50 px-4 lg:h-[60px] lg:px-6">
+            {/* Mobile menu button (visible only on small screens) */}
             <button
               className="md:hidden p-2 -ml-2"
               onClick={() => setIsMobileSidebarOpen(true)}
             >
               <Menu className="h-5 w-5" />
             </button>
+            {/* Spacer to push icons to the right */}
             <div className="w-full flex-1"></div>
+            {/* Header Icons (Notifications, Settings) */}
             <Bell className="h-5 w-5 text-zinc-400" />
             <button
               onClick={() => setIsSettingsModalOpen(true)}
@@ -205,11 +235,16 @@ const DashboardLayout: React.FC = () => {
               <Settings className="h-5 w-5 text-zinc-400" />
             </button>
           </header>
-          {/* --- FIX: Removed the duplicate <Outlet /> --- */}
+
+          {/* Main Content Area: Renders the active route's component */}
           <main className="flex-1 p-4 sm:p-6 bg-zinc-950 overflow-auto">
+            {/* Outlet renders the matched child route component */}
+            {/* Pass the refreshKey via context to child routes */}
             <Outlet context={{ refreshKey }} />
           </main>
         </div>
+
+        {/* Mobile Sidebar Component (controlled by state) */}
         <MobileSidebar
           isOpen={isMobileSidebarOpen}
           onClose={() => setIsMobileSidebarOpen(false)}

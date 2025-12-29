@@ -1,4 +1,6 @@
 // --- Type Aliases ---
+// Defines the possible string literal values for various status fields and types.
+
 export type OrderStatus =
   | "Pending"
   | "Processing"
@@ -28,47 +30,59 @@ export type DiscountType = "percentage" | "fixed";
 
 // --- Interface Definitions ---
 
+/**
+ * Represents a single media item (image or video) linked to a product.
+ */
 export interface MediaItem {
   id?: number;
   media_url: string;
   media_type: MediaType;
 }
 
-// Represents product details within a fetched order
+/**
+ * Represents the essential product details nested inside a fetched Order.
+ */
 export interface ItemProductDetail {
   name: string;
   sku: string;
-  selling_price: number; // ADD THIS
-  gst_rate: number; // ADD THIS
+  selling_price: number;
+  gst_rate: number;
 }
 
-// Represents an Item with its quantity inside an Order
+/**
+ * Represents a line item within a fetched Order, including quantity and product details.
+ */
 export interface ItemInOrder {
   quantity: number;
   product: ItemProductDetail;
 }
 
-// Represents an item when creating a new Order
+/**
+ * Represents a line item when creating a new Order (uses product_id).
+ */
 export interface OrderItemCreate {
   product_id: number;
   quantity: number;
 }
 
-// The main Order object received from the API
+/**
+ * The main Order object structure as received from the API.
+ */
 export interface Order {
   id: number;
   order_date: string;
   customer_name: string;
   customer_email: string;
+  phone_number?: string;
   shipping_address: string;
-  // --- UPDATED FINANCIAL FIELDS ---
+  // Financial fields calculated by the backend
   subtotal: number;
   discount_value?: number;
   discount_type?: DiscountType;
   total_gst: number;
   shipping_charges?: number;
   total_amount: number;
-  // --- END OF UPDATED FIELDS ---
+  // Legacy amount field (may be deprecated)
   amount: number;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod;
@@ -79,10 +93,13 @@ export interface Order {
   items: ItemInOrder[];
 }
 
-// Payload for creating a new Order
+/**
+ * The payload structure required to create a new Order via the API.
+ */
 export interface OrderCreate {
   customer_name: string;
   customer_email: string;
+  phone_number?: string;
   shipping_address: string;
   payment_status: PaymentStatus;
   payment_method: PaymentMethod;
@@ -90,15 +107,16 @@ export interface OrderCreate {
   shipping_provider?: ShippingProvider;
   tracking_id?: string;
   vehicle_id?: number;
-
-  // New financial fields
+  // Financial fields sent during creation
   discount_value?: number;
   discount_type?: DiscountType;
   shipping_charges?: number;
   items: OrderItemCreate[];
 }
 
-// Payload for updating an Order's fulfillment details
+/**
+ * The payload structure for updating an Order's fulfillment details.
+ */
 export interface OrderUpdate {
   status?: OrderStatus;
   payment_status?: PaymentStatus;
@@ -108,6 +126,10 @@ export interface OrderUpdate {
 }
 
 // --- USER INTERFACES ---
+
+/**
+ * Represents a User account as received from the API.
+ */
 export interface User {
   id: number;
   name: string;
@@ -116,13 +138,19 @@ export interface User {
   is_active: boolean;
 }
 
+/**
+ * Payload for creating a new User.
+ */
 export interface UserCreate {
   name: string;
   email: string;
-  password: string;
+  password: string; // Password is required on creation
   role: UserRole;
 }
 
+/**
+ * Payload for updating an existing User. All fields are optional.
+ */
 export interface UserUpdate {
   name?: string;
   email?: string;
@@ -131,6 +159,10 @@ export interface UserUpdate {
 }
 
 // --- PRODUCT INTERFACES ---
+
+/**
+ * The main Product object structure as received from the API.
+ */
 export interface Product {
   id: number;
   name: string;
@@ -143,11 +175,14 @@ export interface Product {
   reorder_level?: number;
   cost_price?: number;
   selling_price?: number;
-  gst_rate?: number; // --- ADDED ---
+  gst_rate?: number; // Tax rate for the product
   last_restocked?: string;
   images?: MediaItem[];
 }
 
+/**
+ * Payload for creating a new Product.
+ */
 export interface ProductCreate {
   name: string;
   sku: string;
@@ -159,11 +194,14 @@ export interface ProductCreate {
   reorder_level?: number;
   cost_price?: number;
   selling_price?: number;
-  gst_rate?: number; // --- ADDED ---
+  gst_rate?: number;
   last_restocked?: string;
   images?: MediaItem[];
 }
 
+/**
+ * Payload for updating an existing Product. All fields are optional.
+ */
 export interface ProductUpdate {
   name?: string;
   sku?: string;
@@ -175,12 +213,16 @@ export interface ProductUpdate {
   reorder_level?: number;
   cost_price?: number;
   selling_price?: number;
-  gst_rate?: number; // --- ADDED ---
+  gst_rate?: number;
   last_restocked?: string;
   images?: MediaItem[];
 }
 
 // --- VEHICLE INTERFACE ---
+
+/**
+ * Represents a single vehicle in the logistics fleet.
+ */
 export interface Vehicle {
   id: number;
   vehicle_number: string;
@@ -193,58 +235,94 @@ export interface Vehicle {
   longitude: number;
 }
 
-// --- NEW INTERFACES: For App Settings ---
+// --- APP SETTINGS INTERFACES ---
+
+/**
+ * Represents a single key-value application setting.
+ */
 export interface AppSetting {
   setting_key: string;
   setting_value: string;
 }
 
+/**
+ * Payload for updating the list of application settings.
+ */
 export interface AppSettingsUpdate {
   settings: AppSetting[];
 }
 
 // --- ANALYTICS INTERFACES ---
+
+/**
+ * Represents a single KPI card on the dashboard.
+ */
 export interface KpiCard {
   title: string;
   value: string;
   change?: string;
 }
+
+/**
+ * Represents a top-selling product.
+ */
 export interface TopProduct {
   name: string;
-  value: number;
+  value: number; // e.g., units sold
 }
+
+/**
+ * Data structure for the delivery status pie chart.
+ */
 export interface DeliveryStatusChart {
   on_time: number;
   delayed: number;
 }
+
+/**
+ * Data for a single bar in the order status breakdown chart.
+ */
 export interface OrderStatusBreakdownItem {
-  status: string; // e.g., "Pending", "Delivered"
+  status: string;
   value: number; // Count for that status
 }
 
-// --- NAYE TYPES: Low Stock Products ke liye ---
+/**
+ * Represents a single product in the low stock list.
+ */
 export interface LowStockProduct {
   name: string;
   stock_quantity: number;
 }
+
+/**
+ * API response structure for the low stock products endpoint.
+ */
 export interface LowStockProductResponse {
   data: LowStockProduct[];
 }
-// --- END OF NEW TYPES ---
 
-// --- MODIFY THE EXISTING AnalyticsSummary TYPE ---
+/**
+ * The main data structure for the analytics summary endpoint.
+ */
 export interface AnalyticsSummary {
-  kpi_cards: { title: string; value: string; change?: string }[];
-  top_selling_products: { name: string; value: number }[];
-  delivery_status: { on_time: number; delayed: number };
-  // --- ADD THIS NEW FIELD ---
-  order_status_breakdown: OrderStatusBreakdownItem[]; // Add this line
+  kpi_cards: KpiCard[];
+  top_selling_products: TopProduct[];
+  delivery_status: DeliveryStatusChart;
+  order_status_breakdown: OrderStatusBreakdownItem[]; // Breakdown by status
 }
+
+/**
+ * A single data point for a time-series forecast.
+ */
 export interface ForecastDataPoint {
   date: string;
-  value: number;
+  value: number; // Forecasted value (e.g., units)'[]
 }
 
+/**
+ * API response structure for the demand forecast endpoint.
+ */
 export interface DemandForecast {
   forecast: ForecastDataPoint[];
 }

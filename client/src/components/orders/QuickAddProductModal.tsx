@@ -1,13 +1,14 @@
 import React, { useState, useEffect, type FormEvent } from "react";
 import type { Product, ProductCreate, ProductStatus } from "@/types";
 import { createProduct, getSettings } from "@/services/api";
+// Note: This modal does not use ModalLayout because it's a simpler, nested modal.
 
 interface QuickAddProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onProductAdded: (newProduct: Product) => void;
-  setSelectedProductId: (id: string) => void;
-  initialProductName?: string;
+  setSelectedProductId: (id: string) => void; // Will select the new product in the parent form
+  initialProductName?: string; // Pre-fills the name from the parent form's search box
 }
 
 export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
@@ -17,6 +18,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
   setSelectedProductId,
   initialProductName = "",
 }) => {
+  // This modal only needs a partial <ProductCreate> form
   const [formData, setFormData] = useState<Partial<ProductCreate>>({
     name: initialProductName,
     stock_quantity: 0,
@@ -29,10 +31,10 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      // Form ko initial product name se set karein
+      // Set the form with the initial product name passed from the parent
       setFormData((prev) => ({ ...prev, name: initialProductName }));
 
-      // Settings fetch karein
+      // Fetch settings to determine the low stock threshold
       const fetchSettings = async () => {
         try {
           const response = await getSettings();
@@ -47,7 +49,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
       };
       fetchSettings();
     }
-  }, [isOpen, initialProductName]);
+  }, [isOpen, initialProductName]); // Rerun when the modal is opened or the initial name changes
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -58,12 +60,13 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
     ].includes(name);
 
     setFormData((prev) => {
+      // Parse number fields, otherwise just set the string value
       const updatedData = {
         ...prev,
         [name]: isNumberField ? parseFloat(value) || 0 : value,
       };
 
-      // Stock quantity change hone par status automatically update karein
+      // Automatically update status when stock quantity changes
       if (name === "stock_quantity") {
         const stock = parseInt(value, 10) || 0;
         const lowStockThreshold =
@@ -88,7 +91,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      // Ensure status is set if it wasn't already
+      // Ensure status is set if it wasn't already (e.g., if stock was never touched)
       const finalFormData = { ...formData };
       if (!finalFormData.status) {
         const stock = finalFormData.stock_quantity || 0;
@@ -99,12 +102,15 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
         else finalFormData.status = "In Stock";
       }
 
+      // Create the product using the (now complete) form data
       const response = await createProduct(finalFormData as ProductCreate);
       const newProduct = response.data;
 
-      onProductAdded(newProduct);
-      setSelectedProductId(String(newProduct.id));
-      onClose();
+      // --- Callbacks to update the parent component ---
+      onProductAdded(newProduct); // Add the new product to the main product list
+      setSelectedProductId(String(newProduct.id)); // Select this new product in the order form
+
+      onClose(); // Close this modal
       alert(`Product "${newProduct.name}" created successfully!`);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to create product.");
@@ -115,6 +121,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
 
   if (!isOpen) return null;
 
+  // This modal uses a simpler, self-contained layout
   return (
     <div className="fixed inset-0 bg-black/80 z-[60] flex justify-center items-center p-4">
       <div className="bg-zinc-800 p-6 rounded-lg w-full max-w-md border border-zinc-600">

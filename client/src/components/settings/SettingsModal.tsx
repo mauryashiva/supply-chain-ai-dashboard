@@ -6,10 +6,10 @@ import { getSettings, updateSettings } from "@/services/api";
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSettingsSave: () => void; // Yeh naya prop hai
+  onSettingsSave: () => void; // A new prop to call when settings are saved
 }
 
-// Setting key ko behtar format mein dikhane ke liye helper function
+// Helper function to format a setting key (e.g., "LOW_STOCK_THRESHOLD" -> "Low Stock Threshold")
 const formatSettingKey = (key: string) => {
   return key
     .split("_")
@@ -20,14 +20,14 @@ const formatSettingKey = (key: string) => {
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
-  onSettingsSave, // --- CHANGE 2: Naye prop ko yahan receive karein ---
+  onSettingsSave,
 }) => {
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Jab modal khule, to settings fetch karein
+    // When the modal opens, fetch the current settings
     if (isOpen) {
       const fetchSettings = async () => {
         setLoading(true);
@@ -45,7 +45,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   }, [isOpen]);
 
-  // Input field mein change handle karein
+  // Handle changes to any setting input field
   const handleChange = (key: string, value: string) => {
     setSettings((currentSettings) =>
       currentSettings.map((setting) =>
@@ -56,13 +56,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     );
   };
 
-  // Settings save karein
+  // Save the updated settings to the database
   const handleSave = async () => {
     setLoading(true);
     setError(null);
     try {
       await updateSettings({ settings });
-      onSettingsSave(); // Yeh parent ko signal bhejega    } catch (err) {
+      onSettingsSave(); // Signal to the parent component that settings were saved
+    } catch (err) {
       setError("Failed to save settings.");
     } finally {
       setLoading(false);
@@ -71,6 +72,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
+  // This modal uses a manual layout instead of the ModalLayout component
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
       <div className="bg-zinc-900 rounded-lg shadow-xl p-6 w-full max-w-md relative border border-zinc-700">
@@ -84,12 +86,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           Application Settings
         </h2>
 
+        {/* Show a loader while settings are being fetched */}
         {loading && !settings.length ? (
           <div className="text-center text-zinc-400">
             <Loader className="animate-spin inline-block" />
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Map over the fetched settings and create an input for each */}
             {settings.map(({ setting_key, setting_value }) => (
               <div key={setting_key}>
                 <label className="block text-sm font-medium text-zinc-300 mb-1">
@@ -107,10 +111,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         )}
 
+        {/* Display any save/load errors */}
         {error && (
           <p className="text-red-500 text-sm mt-4 text-center">{error}</p>
         )}
 
+        {/* Modal action buttons */}
         <div className="mt-6 flex justify-end gap-3">
           <button
             onClick={onClose}

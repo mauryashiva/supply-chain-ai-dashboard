@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import type { AnalyticsSummary } from "@/types"; // Path alias
 
-// Colors ko component ke saath move kar diya
+// Define colors for the pie chart slices (On-Time, Delayed)
 const DELIVERY_COLORS = ["#22d3ee", "#f43f5e"]; // Cyan, Red
 
 interface DeliveryPieChartProps {
@@ -17,12 +17,15 @@ interface DeliveryPieChartProps {
 }
 
 export const DeliveryPieChart: React.FC<DeliveryPieChartProps> = ({ data }) => {
+  // Format the incoming data for the PieChart component
   const chartData = [
     { name: "On-Time", value: data.on_time },
     { name: "Delayed", value: data.delayed },
   ];
 
   const totalDeliveries = data.on_time + data.delayed;
+
+  // Handle the case where there is no data to display
   if (totalDeliveries === 0) {
     return (
       <div className="h-[300px] flex items-center justify-center text-zinc-500">
@@ -58,6 +61,7 @@ export const DeliveryPieChart: React.FC<DeliveryPieChartProps> = ({ data }) => {
               border: "1px solid #3f3f46",
               borderRadius: "0.5rem",
             }}
+            // Custom tooltip formatter to show count and percentage
             formatter={(value: number) =>
               `${value} (${((value / totalDeliveries) * 100).toFixed(1)}%)`
             }

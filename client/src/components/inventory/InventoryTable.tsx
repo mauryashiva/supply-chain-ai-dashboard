@@ -1,22 +1,23 @@
 import React from "react";
-import { Eye, Pencil, Trash2 } from "lucide-react"; // Eye icon import karein
+import { Eye, Pencil, Trash2 } from "lucide-react"; // Import icons for actions
 import type { Product } from "@/types";
-import { StockStatusBadge } from "./InventoryComponents";
+import { StockStatusBadge } from "./InventoryComponents"; // Import the status badge component
 
-// Props ke interface mein 'onView' function add karein
+// Define the props for the InventoryTable component
 interface InventoryTableProps {
   products: Product[];
-  onEdit: (product: Product) => void;
-  onDelete: (product: Product) => void;
-  onView: (product: Product) => void; // Naya prop
+  onEdit: (product: Product) => void; // Function to handle editing a product
+  onDelete: (product: Product) => void; // Function to handle deleting a product
+  onView: (product: Product) => void; // Function to handle viewing product details
 }
 
 export const InventoryTable: React.FC<InventoryTableProps> = ({
   products,
   onEdit,
   onDelete,
-  onView, // Naye prop ko receive karein
+  onView, // Receive the new onView prop
 }) => {
+  // Helper function to format numbers as Indian Rupees (₹)
   const formatCurrency = (amount?: number) => {
     if (typeof amount !== "number") return "N/A";
     return new Intl.NumberFormat("en-IN", {
@@ -30,7 +31,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
       <table className="min-w-full divide-y divide-zinc-800">
         <thead className="bg-zinc-800/50">
           <tr>
-            {/* --- Columns kam kar diye gaye hain --- */}
+            {/* --- Simplified columns for the main table view --- */}
             <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
               Product
             </th>
@@ -54,7 +55,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
         <tbody className="bg-zinc-900 divide-y divide-zinc-800">
           {products.map((product) => (
             <tr key={product.id} className="hover:bg-zinc-800/50">
-              {/* --- Sirf zaroori details yahan dikhayi jaa rahi hain --- */}
+              {/* --- Displaying only the essential product details --- */}
               <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-white">
                 {product.name}
               </td>
@@ -65,16 +66,18 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                 {product.stock_quantity} units
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-white">
+                {/* Calculate the total stock value based on cost price */}
                 {formatCurrency(
                   (product.cost_price || 0) * product.stock_quantity
                 )}
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-sm">
+                {/* Use the reusable badge component for status */}
                 <StockStatusBadge status={product.status} />
               </td>
               <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex items-center justify-end gap-4">
-                  {/* --- NAYA "VIEW" BUTTON EYE ICON KE SAATH --- */}
+                  {/* --- NEW "VIEW" BUTTON WITH EYE ICON --- */}
                   <button
                     onClick={() => onView(product)}
                     className="text-zinc-400 hover:text-white"
@@ -82,6 +85,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   >
                     <Eye size={16} />
                   </button>
+                  {/* Edit Button */}
                   <button
                     onClick={() => onEdit(product)}
                     className="text-cyan-400 hover:text-cyan-300"
@@ -89,6 +93,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   >
                     <Pencil size={16} />
                   </button>
+                  {/* Delete Button */}
                   <button
                     onClick={() => onDelete(product)}
                     className="text-red-500 hover:text-red-400"
