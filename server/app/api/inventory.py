@@ -6,6 +6,8 @@ from ..schemas import schemas
 from ..models import models
 # Import helpers to dynamically calculate product status based on settings
 from ..utils.settings_helpers import get_low_stock_threshold, get_product_status
+from ..core.websocket_manager import manager  # WebSocket manager
+
 
 router = APIRouter()
 
@@ -36,7 +38,7 @@ def get_all_products(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     return products_with_status
 
 @router.post("/products", response_model=schemas.Product, status_code=status.HTTP_201_CREATED)
-def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
+async def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)):
     """
     Creates a new product in the database.
     The 'status' field is dynamically calculated upon creation.
@@ -69,10 +71,12 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
     setattr(db_product, 'status', calculated_status) # Assign the status for the response model
 
     print(f"✅ New product created via API: {db_product.name} (SKU: {db_product.sku})")
+        # WebSocket Broadcast
+    await manager.broadcast("inventory_updated")
     return db_product
 
 @router.put("/products/{product_id}", response_model=schemas.Product)
-def update_product(product_id: int, product_update: schemas.ProductUpdate, db: Session = Depends(get_db)):
+async def update_product(product_id: int, product_update: schemas.ProductUpdate, db: Session = Depends(get_db)):
     """
     Updates an existing product.
     The 'status' field is dynamically recalculated after the update.
@@ -110,10 +114,13 @@ def update_product(product_id: int, product_update: schemas.ProductUpdate, db: S
     calculated_status = get_product_status(db_product.stock_quantity, low_stock_threshold)
     setattr(db_product, 'status', calculated_status) # Assign the status for the response model
 
+        # WebSocket Broadcast
+    await manager.broadcast("inventory_updated")
+
     return db_product
 
 @router.delete("/products/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_product(product_id: int, db: Session = Depends(get_db)):
+async def delete_product(product_id: int, db: Session = Depends(get_db)):
     """
     Deletes a product from the database.
     """
@@ -123,4 +130,6 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     
     db.delete(db_product)
     db.commit()
+     # WebSocket Broadcast
+    await manager.broadcast("inventory_updated")
     return None

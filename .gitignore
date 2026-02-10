@@ -1,6 +1,7 @@
 #############################
-# Frontend (Vite + React + TS + pnpm)
+# Frontend (Vite + React + TS + pnpm) - ROOT
 #############################
+
 # Dependencies
 node_modules/
 .pnpm-store/
@@ -17,13 +18,6 @@ build/
 .cache/
 .parcel-cache/
 
-# dotenv environment variables for frontend (inside 'client' folder)
-client/.env
-client/.env.local
-client/.env.development.local
-client/.env.test.local
-client/.env.production.local
-
 # TypeScript build info
 *.tsbuildinfo
 
@@ -32,9 +26,47 @@ coverage/
 *.lcov
 .nyc_output
 
+
+#############################
+# Frontend - client/
+#############################
+
+client/node_modules/
+client/dist/
+client/build/
+client/.cache/
+client/.parcel-cache/
+
+# dotenv environment variables
+client/.env
+client/.env.local
+client/.env.development.local
+client/.env.test.local
+client/.env.production.local
+
+
+#############################
+# Frontend - customer-store/
+#############################
+
+customer-store/node_modules/
+customer-store/dist/
+customer-store/build/
+customer-store/.cache/
+customer-store/.parcel-cache/
+
+# dotenv environment variables
+customer-store/.env
+customer-store/.env.local
+customer-store/.env.development.local
+customer-store/.env.test.local
+customer-store/.env.production.local
+
+
 #############################
 # Backend (Python + FastAPI)
 #############################
+
 # Python bytecode and cache
 __pycache__/
 *.py[cod]
@@ -52,7 +84,7 @@ ENV/
 *.egg-info/
 .eggs/
 
-# Database files (e.g., for local SQLite testing)
+# Database files
 *.sqlite3
 *.db
 
@@ -70,24 +102,28 @@ logs/
 .coverage
 coverage.xml
 
-# Environment variables for backend (inside 'server' folder and root)
+# Environment variables
 server/.env
 .env
 .env.local
 .env.*
 
+
 #############################
 # IDE / Editor specific files
 #############################
+
 .vscode/
 .idea/
 *.swp
 *.swo
 *.iml
 
+
 #############################
 # OS generated files
 #############################
+
 .DS_Store
 .DS_Store?
 ._*

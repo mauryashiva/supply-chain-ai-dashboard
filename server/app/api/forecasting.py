@@ -44,7 +44,7 @@ def get_demand_forecast(
                              .all()
 
     if not order_data_query:
-        raise HTTPException(status_code=404, detail="Not enough historical data to generate a forecast.")
+        return {"forecast": []}
 
     # 2. Prepare data for the model using Pandas
     df = pd.DataFrame(order_data_query, columns=['date', 'total_quantity'])

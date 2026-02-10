@@ -61,10 +61,13 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
         try {
           const response = await getSettings();
           // Convert the settings array into a key-value map for easier access
-          const settingsMap = response.data.reduce((acc, setting) => {
-            acc[setting.setting_key] = setting.setting_value;
-            return acc;
-          }, {} as { [key: string]: string });
+          const settingsMap = response.data.reduce(
+            (acc, setting) => {
+              acc[setting.setting_key] = setting.setting_value;
+              return acc;
+            },
+            {} as { [key: string]: string },
+          );
           setSettings(settingsMap);
         } catch (error) {
           console.error("Failed to fetch settings:", error);
@@ -78,7 +81,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
+    >,
   ) => {
     const { name, value } = e.target;
     const numberFields = [
@@ -150,7 +153,7 @@ export const AddItemModal: React.FC<AddItemModalProps> = ({
       // Call the API to generate a description
       const response = await generateDescription(
         formData.name,
-        formData.category
+        formData.category,
       );
       // Update the form state with the generated description
       setFormData((prev) => ({
