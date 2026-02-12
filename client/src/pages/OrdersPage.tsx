@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { getOrders, getProducts, deleteOrder } from "@/services/api";
 import { Search, PlusCircle } from "lucide-react";
 import type { Order, Product } from "@/types";
+import { useRealTimeSync } from "@/hooks/useRealTimeSync";
 
 // Import all modal and table components related to Orders
 import { AddOrderModal } from "@/components/orders/AddOrderModal";
@@ -36,6 +37,18 @@ const OrdersPage: React.FC = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null); // Order being edited
   const [isDeleting, setIsDeleting] = useState(false); // Loading state for delete confirmation
 
+  const fetchOrders = async () => {
+    try {
+      const response = await getOrders();
+      setOrders(response.data);
+    } catch (err) {
+      console.error("Failed to fetch orders", err);
+    }
+  };
+
+  // 🔥 Real-time WebSocket sync
+  useRealTimeSync(fetchOrders);
+
   // Effect to fetch initial data (orders and products) on component mount
   useEffect(() => {
     const fetchData = async () => {
@@ -63,7 +76,7 @@ const OrdersPage: React.FC = () => {
   const filteredOrders = orders.filter(
     (o) =>
       o.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      o.id.toString().includes(searchTerm)
+      o.id.toString().includes(searchTerm),
   );
 
   // --- Handlers for Child Components ---

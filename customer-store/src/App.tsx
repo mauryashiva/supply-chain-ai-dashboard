@@ -7,6 +7,7 @@ import {
 import { HomePage } from "./pages/HomePage";
 import { CheckoutPage } from "./pages/CheckoutPage";
 import { AuthPage } from "./pages/AuthPage"; // 👈 Ensure this is imported!
+import { OrderHistoryPage } from "./pages/OrderHistoryPage";
 
 // The ProtectedRoute must be defined OUTSIDE the App component or in a separate file
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -21,7 +22,14 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />
-
+        <Route
+          path="/my-orders"
+          element={
+            <ProtectedRoute>
+              <OrderHistoryPage />
+            </ProtectedRoute>
+          }
+        />
         {/* Wrap Checkout with ProtectedRoute */}
         <Route
           path="/checkout"

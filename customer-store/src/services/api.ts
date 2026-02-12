@@ -38,3 +38,5 @@ export const loginUser = (credentials: FormData) =>
 // --- ORDER CALLS ---
 export const placeOrder = (orderData: any) =>
   apiClient.post("/customer/orders/place-order", orderData);
+
+export const getMyOrders = () => apiClient.get("/customer/orders/my-orders");

@@ -5,8 +5,25 @@ from ...models import models
 from ...schemas import schemas
 from ..auth import get_current_user # Dependency to get logged-in user
 from ...core.websocket_manager import manager
+from typing import List   # <-- ADD THIS LINE
+from sqlalchemy.orm import joinedload
+
+
 
 router = APIRouter()
+
+@router.get("/my-orders", response_model=List[schemas.Order])
+async def get_my_orders(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    return (
+        db.query(models.Order)
+        .options(joinedload(models.Order.items).joinedload(models.OrderItem.product))
+        .filter(models.Order.user_id == current_user.id)
+        .order_by(models.Order.order_date.desc())
+        .all()
+    )
 
 @router.post("/place-order", status_code=status.HTTP_201_CREATED)
 async def place_order(
@@ -88,6 +105,8 @@ async def place_order(
         # 6. BROADCAST TO ADMIN & CUSTOMER
         # This triggers the real-time refresh in inventory and order lists
         await manager.broadcast("inventory_updated")
+        await manager.broadcast("order_updated")
+
         
         return {"message": "Order placed successfully", "order_id": new_order.id}
 
