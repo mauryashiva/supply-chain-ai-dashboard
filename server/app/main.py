@@ -13,6 +13,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from .api.customer import orders as customer_orders
 
+from .api import auth
+
 
 
 # Create all database tables (if they don't exist) on app startup
@@ -58,6 +60,8 @@ app.include_router(forecasting.router, prefix="/api", tags=["Forecasting"])
 app.include_router(customer_catalog.router, prefix="/api/customer", tags=["Customer Storefront"])
 
 app.include_router(customer_orders.router, prefix="/api/customer/orders", tags=["Customer Orders"])
+
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 
 # Include the refactored bulk routers. Their prefixes are defined in their own files
 # (e.g., /bulk/inventory), so we just add the /api prefix here.

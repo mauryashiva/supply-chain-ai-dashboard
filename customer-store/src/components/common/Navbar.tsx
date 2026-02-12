@@ -1,8 +1,24 @@
-import React from "react";
-import { Search, Truck } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Search, Truck, LogOut } from "lucide-react";
 import { CartDrawer } from "./CartDrawer";
+import { useNavigate } from "react-router-dom";
 
 export const Navbar: React.FC = () => {
+  const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) setUser(JSON.parse(storedUser));
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    navigate("/");
+  };
+
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
@@ -12,7 +28,7 @@ export const Navbar: React.FC = () => {
           <span>StoreFront AI</span>
         </div>
 
-        {/* Search Bar (UI Only) */}
+        {/* Search */}
         <div className="hidden md:flex relative w-1/3">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
           <input
@@ -24,16 +40,24 @@ export const Navbar: React.FC = () => {
 
         {/* Actions */}
         <div className="flex items-center gap-6 text-zinc-300">
-          <button className="hover:text-cyan-400 transition-colors">
-            Categories
-          </button>
-
-          {/* Cart Drawer replaces old cart icon */}
           <CartDrawer />
 
-          <button className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-black hover:bg-zinc-200 transition-colors">
-            Login
-          </button>
+          {!user ? (
+            <button
+              onClick={() => navigate("/auth")}
+              className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-black hover:bg-zinc-200 transition-colors"
+            >
+              Login
+            </button>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-600 transition"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
+          )}
         </div>
       </div>
     </nav>

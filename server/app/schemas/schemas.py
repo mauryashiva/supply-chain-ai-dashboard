@@ -88,6 +88,8 @@ class UserBase(BaseModel):
 # Schema for creating a new user (requires password)
 class UserCreate(UserBase):
     password: str
+    phone_number: str
+    address: str
 # Schema for updating a user (all fields optional)
 class UserUpdate(BaseModel):
     name: Optional[str] = None; email: Optional[str] = None; role: Optional[UserRole] = None; is_active: Optional[bool] = None

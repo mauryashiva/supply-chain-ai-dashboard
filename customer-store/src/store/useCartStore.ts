@@ -19,11 +19,19 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+
+      // ADD ITEM (with stock check)
       addItem: (product) => {
         const items = get().items;
         const existingItem = items.find((item) => item.id === product.id);
 
+        // If out of stock → do nothing
+        if (product.stock_quantity <= 0) return;
+
         if (existingItem) {
+          // Prevent exceeding stock
+          if (existingItem.quantity >= product.stock_quantity) return;
+
           set({
             items: items.map((item) =>
               item.id === product.id
@@ -32,26 +40,64 @@ export const useCartStore = create<CartState>()(
             ),
           });
         } else {
-          set({ items: [...items, { ...product, quantity: 1 }] });
+          set({
+            items: [...items, { ...product, quantity: 1 }],
+          });
         }
       },
-      removeItem: (productId) =>
-        set({ items: get().items.filter((item) => item.id !== productId) }),
-      updateQuantity: (productId, quantity) =>
+
+      // REMOVE ONE ITEM (realistic behaviour)
+      removeItem: (productId) => {
+        const items = get().items;
+        const existingItem = items.find((item) => item.id === productId);
+
+        if (!existingItem) return;
+
+        if (existingItem.quantity > 1) {
+          set({
+            items: items.map((item) =>
+              item.id === productId
+                ? { ...item, quantity: item.quantity - 1 }
+                : item,
+            ),
+          });
+        } else {
+          set({
+            items: items.filter((item) => item.id !== productId),
+          });
+        }
+      },
+
+      // UPDATE QUANTITY (safe + stock aware)
+      updateQuantity: (productId, quantity) => {
+        const items = get().items;
+        const existingItem = items.find((item) => item.id === productId);
+        if (!existingItem) return;
+
+        if (quantity <= 0) {
+          set({
+            items: items.filter((item) => item.id !== productId),
+          });
+          return;
+        }
+
+        const safeQty = Math.min(quantity, existingItem.stock_quantity);
+
         set({
-          items: get().items.map((item) =>
-            item.id === productId
-              ? { ...item, quantity: Math.max(0, quantity) }
-              : item,
+          items: items.map((item) =>
+            item.id === productId ? { ...item, quantity: safeQty } : item,
           ),
-        }),
+        });
+      },
+
       clearCart: () => set({ items: [] }),
+
       getTotalPrice: () =>
         get().items.reduce(
           (total, item) => total + item.selling_price * item.quantity,
           0,
         ),
     }),
-    { name: "shopping-cart" }, // LocalStorage key
+    { name: "shopping-cart" },
   ),
 );
