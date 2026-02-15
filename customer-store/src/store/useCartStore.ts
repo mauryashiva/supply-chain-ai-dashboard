@@ -9,7 +9,8 @@ interface CartItem extends Product {
 interface CartState {
   items: CartItem[];
   addItem: (product: Product) => void;
-  removeItem: (productId: number) => void;
+  removeItem: (productId: number) => void; // Keeps reducing by 1
+  deleteProduct: (productId: number) => void; // New: Wipes the whole item
   updateQuantity: (productId: number, quantity: number) => void;
   clearCart: () => void;
   getTotalPrice: () => number;
@@ -20,18 +21,13 @@ export const useCartStore = create<CartState>()(
     (set, get) => ({
       items: [],
 
-      // ADD ITEM (with stock check)
       addItem: (product) => {
         const items = get().items;
         const existingItem = items.find((item) => item.id === product.id);
-
-        // If out of stock → do nothing
         if (product.stock_quantity <= 0) return;
 
         if (existingItem) {
-          // Prevent exceeding stock
           if (existingItem.quantity >= product.stock_quantity) return;
-
           set({
             items: items.map((item) =>
               item.id === product.id
@@ -40,17 +36,14 @@ export const useCartStore = create<CartState>()(
             ),
           });
         } else {
-          set({
-            items: [...items, { ...product, quantity: 1 }],
-          });
+          set({ items: [...items, { ...product, quantity: 1 }] });
         }
       },
 
-      // REMOVE ONE ITEM (realistic behaviour)
+      // Logic for the Minus (-) button
       removeItem: (productId) => {
         const items = get().items;
         const existingItem = items.find((item) => item.id === productId);
-
         if (!existingItem) return;
 
         if (existingItem.quantity > 1) {
@@ -62,27 +55,28 @@ export const useCartStore = create<CartState>()(
             ),
           });
         } else {
-          set({
-            items: items.filter((item) => item.id !== productId),
-          });
+          set({ items: items.filter((item) => item.id !== productId) });
         }
       },
 
-      // UPDATE QUANTITY (safe + stock aware)
+      // NEW: Logic for the Trash Icon (Direct Delete)
+      deleteProduct: (productId) => {
+        set({
+          items: get().items.filter((item) => item.id !== productId),
+        });
+      },
+
       updateQuantity: (productId, quantity) => {
         const items = get().items;
         const existingItem = items.find((item) => item.id === productId);
         if (!existingItem) return;
 
         if (quantity <= 0) {
-          set({
-            items: items.filter((item) => item.id !== productId),
-          });
+          set({ items: items.filter((item) => item.id !== productId) });
           return;
         }
 
         const safeQty = Math.min(quantity, existingItem.stock_quantity);
-
         set({
           items: items.map((item) =>
             item.id === productId ? { ...item, quantity: safeQty } : item,
