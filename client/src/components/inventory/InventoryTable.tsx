@@ -1,23 +1,21 @@
 import React from "react";
-import { Eye, Pencil, Trash2 } from "lucide-react"; // Import icons for actions
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import type { Product } from "@/types";
-import { StockStatusBadge } from "./InventoryComponents"; // Import the status badge component
+import { StockStatusBadge } from "./InventoryComponents";
 
-// Define the props for the InventoryTable component
 interface InventoryTableProps {
   products: Product[];
-  onEdit: (product: Product) => void; // Function to handle editing a product
-  onDelete: (product: Product) => void; // Function to handle deleting a product
-  onView: (product: Product) => void; // Function to handle viewing product details
+  onEdit: (product: Product) => void;
+  onDelete: (product: Product) => void;
+  onView: (product: Product) => void;
 }
 
 export const InventoryTable: React.FC<InventoryTableProps> = ({
   products,
   onEdit,
   onDelete,
-  onView, // Receive the new onView prop
+  onView,
 }) => {
-  // Helper function to format numbers as Indian Rupees (₹)
   const formatCurrency = (amount?: number) => {
     if (typeof amount !== "number") return "N/A";
     return new Intl.NumberFormat("en-IN", {
@@ -28,75 +26,73 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-zinc-800">
-        <thead className="bg-zinc-800/50">
-          <tr>
-            {/* --- Simplified columns for the main table view --- */}
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
-              Product
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
-              SKU
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
-              Stock
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
-              Stock Value (Cost)
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
-              Status
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-zinc-300 uppercase">
-              Actions
-            </th>
+      <table className="min-w-full divide-y divide-gray-200">
+        {/* HEADER */}
+        <thead className="bg-gray-100">
+          <tr className="text-xs font-bold text-gray-700 uppercase">
+            <th className="px-4 py-3 text-left">Product</th>
+            <th className="px-4 py-3 text-left">SKU</th>
+            <th className="px-4 py-3 text-left">Stock</th>
+            <th className="px-4 py-3 text-left">Stock Value (Cost)</th>
+            <th className="px-4 py-3 text-left">Status</th>
+            <th className="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
-        <tbody className="bg-zinc-900 divide-y divide-zinc-800">
+
+        {/* BODY */}
+        <tbody className="bg-white divide-y divide-gray-200 text-sm font-bold text-gray-900">
           {products.map((product) => (
-            <tr key={product.id} className="hover:bg-zinc-800/50">
-              {/* --- Displaying only the essential product details --- */}
-              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-white">
-                {product.name}
-              </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-zinc-400">
+            <tr key={product.id} className="hover:bg-gray-50 transition">
+              {/* PRODUCT */}
+              <td className="px-4 py-4 whitespace-nowrap">{product.name}</td>
+
+              {/* SKU */}
+              <td className="px-4 py-4 whitespace-nowrap font-mono text-gray-600">
                 {product.sku}
               </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm text-zinc-300">
+
+              {/* STOCK */}
+              <td className="px-4 py-4 whitespace-nowrap">
                 {product.stock_quantity} units
               </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-white">
-                {/* Calculate the total stock value based on cost price */}
+
+              {/* STOCK VALUE */}
+              <td className="px-4 py-4 whitespace-nowrap">
                 {formatCurrency(
-                  (product.cost_price || 0) * product.stock_quantity
+                  (product.cost_price || 0) * product.stock_quantity,
                 )}
               </td>
-              <td className="px-4 py-4 whitespace-nowrap text-sm">
-                {/* Use the reusable badge component for status */}
+
+              {/* STATUS — Dark Badge Compatible */}
+              <td className="px-4 py-4 whitespace-nowrap">
                 <StockStatusBadge status={product.status} />
               </td>
-              <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+
+              {/* ACTIONS */}
+              <td className="px-4 py-4 whitespace-nowrap text-right">
                 <div className="flex items-center justify-end gap-4">
-                  {/* --- NEW "VIEW" BUTTON WITH EYE ICON --- */}
+                  {/* VIEW */}
                   <button
                     onClick={() => onView(product)}
-                    className="text-zinc-400 hover:text-white"
+                    className="text-gray-500 hover:text-gray-900"
                     title="View Details"
                   >
                     <Eye size={16} />
                   </button>
-                  {/* Edit Button */}
+
+                  {/* EDIT */}
                   <button
                     onClick={() => onEdit(product)}
-                    className="text-cyan-400 hover:text-cyan-300"
+                    className="text-blue-600 hover:text-blue-700"
                     title="Edit Product"
                   >
                     <Pencil size={16} />
                   </button>
-                  {/* Delete Button */}
+
+                  {/* DELETE */}
                   <button
                     onClick={() => onDelete(product)}
-                    className="text-red-500 hover:text-red-400"
+                    className="text-red-600 hover:text-red-700"
                     title="Delete Product"
                   >
                     <Trash2 size={16} />

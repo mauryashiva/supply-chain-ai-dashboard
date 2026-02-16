@@ -55,49 +55,39 @@ export const OrderTable: React.FC<OrderTableProps> = ({
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-zinc-800">
-        <thead className="bg-zinc-800/50">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Order
-            </th>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Customer
-            </th>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Contact
-            </th>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Location
-            </th>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Payment
-            </th>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Items
-            </th>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Amount
-            </th>
-            <th className="px-4 py-3 text-left text-xs text-zinc-300 uppercase">
-              Status
-            </th>
-            <th className="px-4 py-3 text-right text-xs text-zinc-300 uppercase">
-              Actions
-            </th>
+      <table className="min-w-full divide-y divide-gray-200">
+        {/* HEADER */}
+        <thead className="bg-gray-100">
+          <tr className="text-xs font-bold text-gray-700 uppercase">
+            <th className="px-4 py-3 text-left">Order</th>
+            <th className="px-4 py-3 text-left">Customer</th>
+            <th className="px-4 py-3 text-left">Contact</th>
+            <th className="px-4 py-3 text-left">Location</th>
+            <th className="px-4 py-3 text-left">Payment</th>
+            <th className="px-4 py-3 text-left">Items</th>
+            <th className="px-4 py-3 text-left">Amount</th>
+            <th className="px-4 py-3 text-left">Status</th>
+            <th className="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
 
-        <tbody className="bg-zinc-900 divide-y divide-zinc-800">
+        {/* BODY */}
+        <tbody className="bg-white divide-y divide-gray-200 text-sm font-bold text-gray-900">
           {loading ? (
             <tr>
-              <td colSpan={9} className="text-center py-8 text-zinc-400">
+              <td
+                colSpan={9}
+                className="text-center py-8 font-bold text-gray-600"
+              >
                 Loading orders...
               </td>
             </tr>
           ) : error ? (
             <tr>
-              <td colSpan={9} className="text-center py-8 text-red-400">
+              <td
+                colSpan={9}
+                className="text-center py-8 text-red-600 font-bold"
+              >
                 <div className="flex justify-center items-center gap-2">
                   <AlertCircle size={16} /> {error}
                 </div>
@@ -105,7 +95,10 @@ export const OrderTable: React.FC<OrderTableProps> = ({
             </tr>
           ) : orders.length === 0 ? (
             <tr>
-              <td colSpan={9} className="text-center py-8 text-zinc-400">
+              <td
+                colSpan={9}
+                className="text-center py-8 font-bold text-gray-600"
+              >
                 No orders found.
               </td>
             </tr>
@@ -117,17 +110,14 @@ export const OrderTable: React.FC<OrderTableProps> = ({
                 "N/A";
 
               return (
-                <tr
-                  key={order.id}
-                  className="hover:bg-zinc-800/50 transition-colors"
-                >
+                <tr key={order.id} className="hover:bg-gray-50 transition">
                   {/* ORDER */}
-                  <td className="px-4 py-4 text-sm">
+                  <td className="px-4 py-4">
                     <div className="flex flex-col">
-                      <span className="text-cyan-400 font-mono">
+                      <span className="text-blue-600 font-mono font-bold">
                         #{order.id}
                       </span>
-                      <span className="text-xs text-zinc-500">
+                      <span className="text-xs font-bold text-gray-500">
                         {formatDate(order.order_date)} •{" "}
                         {getOrderAge(order.order_date)}
                       </span>
@@ -135,57 +125,55 @@ export const OrderTable: React.FC<OrderTableProps> = ({
                   </td>
 
                   {/* CUSTOMER */}
-                  <td className="px-4 py-4 text-sm font-semibold text-white">
+                  <td className="px-4 py-4">
                     {order.customer_name ||
                       order.address?.full_name ||
                       "Unknown"}
                   </td>
 
                   {/* CONTACT */}
-                  <td className="px-4 py-4 text-sm text-zinc-300">
+                  <td className="px-4 py-4 text-gray-700">
                     <div className="flex flex-col gap-1">
                       <span className="flex items-center gap-2">
-                        <Phone size={14} />{" "}
+                        <Phone size={14} />
                         {order.phone_number ||
                           order.address?.phone_number ||
                           "N/A"}
                       </span>
-                      <span className="flex items-center gap-2 text-xs text-zinc-400">
-                        <Mail size={14} />{" "}
+                      <span className="flex items-center gap-2 text-xs">
+                        <Mail size={14} />
                         {order.customer_email || order.user?.email || "N/A"}
                       </span>
                     </div>
                   </td>
 
                   {/* LOCATION */}
-                  <td className="px-4 py-4 text-sm text-zinc-300">
+                  <td className="px-4 py-4 text-gray-700">
                     <span className="flex items-center gap-2">
                       <MapPin size={14} /> {city}
                     </span>
                   </td>
 
-                  {/* PAYMENT */}
-                  <td className="px-4 py-4 text-sm">
+                  {/* PAYMENT — DARK BADGE AREA */}
+                  <td className="px-4 py-4">
                     <div className="flex flex-col gap-1">
                       <PaymentStatusBadge status={order.payment_status} />
-                      <span className="text-xs text-zinc-400">
+                      <span className="text-xs font-bold text-gray-600">
                         {order.payment_method}
                       </span>
                     </div>
                   </td>
 
                   {/* ITEMS */}
-                  <td className="px-4 py-4 text-sm text-zinc-300">
-                    {order.items?.length || 0}
-                  </td>
+                  <td className="px-4 py-4">{order.items?.length || 0}</td>
 
                   {/* AMOUNT */}
-                  <td className="px-4 py-4 text-sm text-zinc-300">
+                  <td className="px-4 py-4">
                     {formatCurrency(order.total_amount)}
                   </td>
 
-                  {/* STATUS */}
-                  <td className="px-4 py-4 text-sm">
+                  {/* STATUS — DARK BADGE AREA */}
+                  <td className="px-4 py-4">
                     <StatusBadge status={order.status} />
                   </td>
 
@@ -194,21 +182,21 @@ export const OrderTable: React.FC<OrderTableProps> = ({
                     <div className="flex justify-end gap-3">
                       <button
                         onClick={() => onView(order)}
-                        className="text-zinc-400 hover:text-white"
+                        className="text-gray-500 hover:text-gray-900"
                       >
                         <Eye size={16} />
                       </button>
 
                       <button
                         onClick={() => onEdit(order)}
-                        className="text-cyan-400 hover:text-cyan-300"
+                        className="text-blue-600 hover:text-blue-700"
                       >
                         <Edit size={16} />
                       </button>
 
                       <button
                         onClick={() => onDelete(order)}
-                        className="text-red-500 hover:text-red-400"
+                        className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 size={16} />
                       </button>

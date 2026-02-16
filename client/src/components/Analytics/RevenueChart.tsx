@@ -8,21 +8,18 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import type { RevenueDataPoint } from "@/services/api"; // Path alias
+import type { RevenueDataPoint } from "@/services/api";
 
 interface RevenueChartProps {
   data: RevenueDataPoint[];
 }
 
 export const RevenueChart: React.FC<RevenueChartProps> = ({ data }) => {
-  // Format the raw date data (e.g., "2025-10-28") into a user-friendly string (e.g., "Oct 28")
-  // We add 'T00:00:00Z' and 'timeZone: "UTC"' to ensure dates are parsed consistently
-  // without being shifted by the user's local time zone.
   const formattedData = data.map((item) => ({
     ...item,
     displayDate: new Date(item.date + "T00:00:00Z").toLocaleDateString(
       "en-US",
-      { month: "short", day: "numeric", timeZone: "UTC" }
+      { month: "short", day: "numeric", timeZone: "UTC" },
     ),
   }));
 
@@ -33,47 +30,53 @@ export const RevenueChart: React.FC<RevenueChartProps> = ({ data }) => {
           data={formattedData}
           margin={{ top: 5, right: 20, bottom: 5, left: 10 }}
         >
-          {/* Defines the main line on the chart */}
+          {/* Grid */}
+          <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" />
+
+          {/* Line */}
           <Line
-            type="monotone" // Creates a smooth, curved line
-            dataKey="revenue" // The key from 'formattedData' to use for the Y-axis
-            stroke="#38bdf8"
-            strokeWidth={2}
-            dot={{ r: 4, fill: "#0e7490" }} // Style for the small dots on the line
-            activeDot={{ r: 6, stroke: "#38bdf8", fill: "#0e7490" }} // Style for the dot on hover
+            type="monotone"
+            dataKey="revenue"
+            stroke="#2563eb"
+            strokeWidth={3}
+            dot={{ r: 4, fill: "#1d4ed8" }}
+            activeDot={{ r: 6, stroke: "#2563eb", fill: "#1d4ed8" }}
           />
-          {/* Renders the background grid */}
-          <CartesianGrid stroke="#3f3f46" strokeDasharray="3 3" />
-          {/* Defines the X-axis (horizontal) */}
+
+          {/* X Axis — ALWAYS BOLD */}
           <XAxis
-            dataKey="displayDate" // The key from 'formattedData' to use for labels
-            stroke="#a1a1aa"
-            fontSize={12}
+            dataKey="displayDate"
+            stroke="#374151"
+            fontSize={13}
             tickLine={false}
             axisLine={false}
-            interval="preserveStartEnd" // Ensures the first and last labels are always shown
+            interval="preserveStartEnd"
+            tick={{ fontWeight: 700, fill: "#111827" }}
           />
-          {/* Defines the Y-axis (vertical) */}
+
+          {/* Y Axis — ALWAYS BOLD */}
           <YAxis
-            stroke="#a1a1aa"
-            fontSize={12}
+            stroke="#374151"
+            fontSize={13}
             tickLine={false}
             axisLine={false}
-            // Formats the axis tick labels (e.g., 50000 -> ₹50,000)
+            width={80}
             tickFormatter={(value) => `₹${value.toLocaleString()}`}
-            width={70} // Reserves space for the Y-axis labels
+            tick={{ fontWeight: 700, fill: "#111827" }}
           />
-          {/* Configures the tooltip that appears on hover */}
+
+          {/* Tooltip — ALL TEXT BOLD */}
           <Tooltip
-            cursor={{ stroke: "#ffffff30", strokeWidth: 1 }} // Style for the vertical hover line
+            cursor={{ stroke: "#d1d5db", strokeWidth: 1 }}
             contentStyle={{
-              backgroundColor: "#18181b",
-              border: "1px solid #3f3f46",
-              borderRadius: "0.5rem",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
+              borderRadius: "8px",
+              fontWeight: "700",
+              color: "#111827",
             }}
-            labelStyle={{ color: "#a1a1aa" }}
-            itemStyle={{ color: "#38bdf8" }}
-            // Formats the value inside the tooltip (e.g., 50000 -> ₹50,000)
+            labelStyle={{ fontWeight: 700 }}
+            itemStyle={{ fontWeight: 700, color: "#2563eb" }}
             formatter={(value: number) => `₹${value.toLocaleString()}`}
           />
         </LineChart>

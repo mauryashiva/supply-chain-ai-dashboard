@@ -7,17 +7,16 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import type { AnalyticsSummary } from "@/types"; // Path alias
+import type { AnalyticsSummary } from "@/types";
 
-// Define colors for the pie chart slices (On-Time, Delayed)
-const DELIVERY_COLORS = ["#22d3ee", "#f43f5e"]; // Cyan, Red
+/* Light UI friendly colors */
+const DELIVERY_COLORS = ["#2563eb", "#ef4444"]; // Blue, Red
 
 interface DeliveryPieChartProps {
   data: AnalyticsSummary["delivery_status"];
 }
 
 export const DeliveryPieChart: React.FC<DeliveryPieChartProps> = ({ data }) => {
-  // Format the incoming data for the PieChart component
   const chartData = [
     { name: "On-Time", value: data.on_time },
     { name: "Delayed", value: data.delayed },
@@ -25,10 +24,9 @@ export const DeliveryPieChart: React.FC<DeliveryPieChartProps> = ({ data }) => {
 
   const totalDeliveries = data.on_time + data.delayed;
 
-  // Handle the case where there is no data to display
   if (totalDeliveries === 0) {
     return (
-      <div className="h-[300px] flex items-center justify-center text-zinc-500">
+      <div className="h-[300px] flex items-center justify-center text-gray-600 font-bold">
         No delivery data available.
       </div>
     );
@@ -43,10 +41,11 @@ export const DeliveryPieChart: React.FC<DeliveryPieChartProps> = ({ data }) => {
             cx="50%"
             cy="50%"
             innerRadius={60}
-            outerRadius={80}
-            fill="#8884d8"
-            paddingAngle={5}
+            outerRadius={85}
+            paddingAngle={4}
             dataKey="value"
+            stroke="#ffffff"
+            strokeWidth={2}
           >
             {chartData.map((_, index) => (
               <Cell
@@ -55,18 +54,31 @@ export const DeliveryPieChart: React.FC<DeliveryPieChartProps> = ({ data }) => {
               />
             ))}
           </Pie>
+
+          {/* Tooltip — ALL TEXT BOLD */}
           <Tooltip
             contentStyle={{
-              backgroundColor: "#18181b",
-              border: "1px solid #3f3f46",
-              borderRadius: "0.5rem",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
+              borderRadius: "8px",
+              fontWeight: "700", // Bold
+              color: "#111827",
             }}
-            // Custom tooltip formatter to show count and percentage
+            labelStyle={{ fontWeight: 700 }}
+            itemStyle={{ fontWeight: 700 }}
             formatter={(value: number) =>
               `${value} (${((value / totalDeliveries) * 100).toFixed(1)}%)`
             }
           />
-          <Legend iconType="circle" />
+
+          {/* Legend — ALWAYS BOLD */}
+          <Legend
+            iconType="circle"
+            wrapperStyle={{
+              fontWeight: 700,
+              color: "#111827",
+            }}
+          />
         </PieChart>
       </ResponsiveContainer>
     </div>

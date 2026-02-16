@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
-// Import API functions and types
 import {
   getDashboardSummary,
   getMonthlyRevenue,
   type MonthlyRevenueDataPoint,
 } from "@/services/api";
-// Import Recharts components for the bar chart
+
 import {
   BarChart,
   Bar,
@@ -13,56 +12,49 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  CartesianGrid, // Added CartesianGrid for better readability
+  CartesianGrid,
 } from "recharts";
-// Import icons from lucide-react
+
 import {
   IndianRupee,
   Package,
   Timer,
   Truck,
-  AlertTriangle, // Added AlertTriangle for 'Low Stock'
+  AlertTriangle,
 } from "lucide-react";
-// Import custom types
+
 import type { AnalyticsSummary, KpiCard } from "@/types";
 
-// Props interface for the individual KPI card
 interface KPICardProps {
   title: string;
   value: string;
   icon: React.ElementType;
-  change?: string; // Optional percentage change (e.g., "+5.2%")
+  change?: string;
 }
 
-/**
- * A reusable component to display a single Key Performance Indicator (KPI).
- */
 const KPICard: React.FC<KPICardProps> = ({
   title,
   value,
   icon: Icon,
   change,
 }) => (
-  // The card layout, now with a border and no minimum height for better flexibility
-  <div className="bg-zinc-900 rounded-lg shadow-lg p-5 flex flex-col justify-between border border-zinc-800">
+  <div className="bg-white rounded-xl shadow-sm p-5 flex flex-col justify-between border border-gray-200 hover:shadow-md transition">
     <div className="flex items-center justify-between">
-      {/* Title is truncated if it's too long */}
-      <h3 className="text-sm font-medium text-zinc-400 truncate">{title}</h3>
-      {/* Icon won't shrink if the title is long */}
-      <Icon className="h-5 w-5 text-zinc-500 flex-shrink-0" />
+      <h3 className="text-sm font-bold text-gray-500 truncate">{title}</h3>
+      <Icon className="h-5 w-5 text-gray-400 flex-shrink-0" />
     </div>
+
     <div>
-      {/* The main value, allowed to wrap if needed */}
-      <p className="text-3xl font-bold text-white">{value}</p>
-      {/* Conditionally render the 'change' indicator with dynamic coloring */}
+      <p className="text-3xl font-bold text-gray-900">{value}</p>
+
       {change && (
         <p
-          className={`text-xs mt-1 ${
+          className={`text-xs mt-1 font-bold ${
             change.startsWith("+")
-              ? "text-green-400" // Green for positive
+              ? "text-green-600"
               : change.startsWith("-")
-              ? "text-red-400" // Red for negative
-              : "text-zinc-400" // Neutral color
+                ? "text-red-600"
+                : "text-gray-500"
           }`}
         >
           {change}
@@ -72,36 +64,28 @@ const KPICard: React.FC<KPICardProps> = ({
   </div>
 );
 
-// Maps the 'title' string from the API's KPI cards to a specific Lucide icon component
 const iconMap: { [key: string]: React.ElementType } = {
   "Total Orders": Package,
   Revenue: IndianRupee,
-  "On-Time Deliveries": Timer, // Using Timer icon
+  "On-Time Deliveries": Timer,
   "Pending Orders": Truck,
-  "Low Stock Items": AlertTriangle, // Using AlertTriangle icon
-  "Inventory Value": IndianRupee, // Using IndianRupee icon
+  "Low Stock Items": AlertTriangle,
+  "Inventory Value": IndianRupee,
 };
 
-/**
- * The main component for the Dashboard page.
- * It fetches and displays KPI cards and a monthly revenue chart.
- */
 const DashboardPage: React.FC = () => {
-  // State for the main summary data (KPIs, etc.)
   const [summaryData, setSummaryData] = useState<AnalyticsSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  // State for the Monthly Revenue chart data
   const [monthlyRevenueData, setMonthlyRevenueData] = useState<
     MonthlyRevenueDataPoint[]
   >([]);
   const [monthlyRevenueLoading, setMonthlyRevenueLoading] = useState(true);
   const [monthlyRevenueError, setMonthlyRevenueError] = useState<string | null>(
-    null
+    null,
   );
 
-  // Effect to fetch the KPI summary data when the component mounts
   useEffect(() => {
     const fetchSummary = async () => {
       setSummaryLoading(true);
@@ -110,149 +94,143 @@ const DashboardPage: React.FC = () => {
         const response = await getDashboardSummary();
         setSummaryData(response.data);
       } catch (error) {
-        console.error("Failed to fetch summary data:", error);
+        console.error(error);
         setSummaryError("Could not load dashboard summary.");
       } finally {
         setSummaryLoading(false);
       }
     };
     fetchSummary();
-  }, []); // Empty dependency array ensures this runs only once
+  }, []);
 
-  // Effect to fetch the monthly revenue data when the component mounts
   useEffect(() => {
     const fetchMonthlyRevenue = async () => {
       setMonthlyRevenueLoading(true);
       setMonthlyRevenueError(null);
       try {
-        // Fetch data for the last 6 months
         const response = await getMonthlyRevenue(6);
-        setMonthlyRevenueData(response.data.data); // Access the nested 'data' array
+        setMonthlyRevenueData(response.data.data);
       } catch (error) {
-        console.error("Failed to fetch monthly revenue data:", error);
+        console.error(error);
         setMonthlyRevenueError("Could not load monthly revenue chart.");
       } finally {
         setMonthlyRevenueLoading(false);
       }
     };
     fetchMonthlyRevenue();
-  }, []); // Runs once on mount
+  }, []);
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-bold text-white">Dashboard Overview</h1>
+    <div className="flex flex-col gap-6 bg-gray-50 min-h-screen p-6">
+      <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
 
-      {/* KPI Cards Section */}
+      {/* KPI Cards */}
       {summaryLoading ? (
-        // Show skeleton loaders while KPIs are loading
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
-              className="bg-zinc-900 rounded-lg p-5 h-[108px] animate-pulse border border-zinc-800"
+              className="bg-white rounded-xl p-5 h-[108px] animate-pulse border border-gray-200"
             >
-              <div className="h-4 bg-zinc-700 rounded w-3/4 mb-4"></div>
-              <div className="h-8 bg-zinc-700 rounded w-1/2"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+              <div className="h-8 bg-gray-200 rounded w-1/2"></div>
             </div>
           ))}
         </div>
       ) : summaryError ? (
-        // Show an error message if KPI fetching failed
-        <p className="text-red-400 bg-red-900/20 p-4 rounded-lg border border-red-800">
+        <p className="text-red-600 font-bold bg-red-50 p-4 rounded-lg border border-red-200">
           {summaryError}
         </p>
       ) : summaryData?.kpi_cards ? (
-        // Render the KPI cards
-        // The grid layout is adjusted to 3 columns on large screens for better spacing
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {summaryData.kpi_cards.map((card: KpiCard) => (
             <KPICard
               key={card.title}
               title={card.title}
-              value={card.value} // Use pre-formatted value from backend
+              value={card.value}
               change={card.change}
-              icon={iconMap[card.title] || IndianRupee} // Use mapped icon or fallback
+              icon={iconMap[card.title] || IndianRupee}
             />
           ))}
         </div>
       ) : (
-        // Show if no data is available
-        <p className="text-zinc-500">No summary data available.</p>
+        <p className="text-gray-500 font-bold">No summary data available.</p>
       )}
 
-      {/* Monthly Revenue Chart Section */}
-      <div className="bg-zinc-900 rounded-lg shadow-lg p-6 border border-zinc-800">
-        <h2 className="text-xl font-semibold text-white mb-4">
+      {/* Chart */}
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">
           Monthly Revenue (Last 6 Months)
         </h2>
+
         <div style={{ width: "100%", height: 300 }}>
-          {/* Conditional rendering for the chart's state (loading, error, data) */}
           {monthlyRevenueLoading ? (
-            <div className="h-full flex items-center justify-center text-zinc-500">
+            <div className="h-full flex items-center justify-center text-gray-500 font-bold">
               Loading chart...
             </div>
           ) : monthlyRevenueError ? (
-            <div className="h-full flex items-center justify-center text-red-400">
+            <div className="h-full flex items-center justify-center text-red-600 font-bold">
               {monthlyRevenueError}
             </div>
           ) : monthlyRevenueData.length > 0 ? (
-            // Render the Bar Chart when data is ready
             <ResponsiveContainer>
               <BarChart data={monthlyRevenueData}>
-                {/* Faint horizontal grid lines */}
                 <CartesianGrid
-                  stroke="#3f3f46"
+                  stroke="#e5e7eb"
                   strokeDasharray="3 3"
                   vertical={false}
                 />
+
                 <XAxis
-                  dataKey="month" // Use the 'month' string from the API
-                  stroke="#a1a1aa"
+                  dataKey="month"
+                  stroke="#6b7280"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
+                  tick={{ fontWeight: 700 }}
                 />
+
                 <YAxis
-                  stroke="#a1a1aa"
+                  stroke="#6b7280"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
-                  // Formatter to abbreviate large numbers (Lakhs, Crores)
+                  width={70}
+                  tick={{ fontWeight: 700 }}
                   tickFormatter={(value) => {
                     if (value >= 10000000)
-                      return `₹${(value / 10000000).toFixed(1)}Cr`; // Crores
+                      return `₹${(value / 10000000).toFixed(1)}Cr`;
                     if (value >= 100000)
-                      return `₹${(value / 100000).toFixed(1)}L`; // Lakhs
-                    if (value >= 1000) return `₹${(value / 1000).toFixed(1)}k`; // Thousands
-                    return `₹${value}`; // Below 1k
+                      return `₹${(value / 100000).toFixed(1)}L`;
+                    if (value >= 1000) return `₹${(value / 1000).toFixed(1)}k`;
+                    return `₹${value}`;
                   }}
-                  width={70} // Reserve space for labels
                 />
+
                 <Tooltip
-                  cursor={{ fill: "#ffffff10" }} // Light hover effect
-                  // Dark theme styling for the tooltip box
+                  cursor={{ fill: "#f3f4f6" }}
                   contentStyle={{
-                    backgroundColor: "#18181b",
-                    border: "1px solid #3f3f46",
-                    borderRadius: "0.5rem",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    fontWeight: "700",
                   }}
-                  labelStyle={{ color: "#a1a1aa" }}
-                  itemStyle={{ color: "#22d3ee" }} // Match bar color
-                  // Format the value inside the tooltip with currency and commas
+                  labelStyle={{ fontWeight: 700 }}
+                  itemStyle={{ fontWeight: 700, color: "#2563eb" }}
                   formatter={(value: number) => `₹${value.toLocaleString()}`}
                 />
+
                 <Bar
-                  dataKey="revenue" // The key for the bar values
-                  fill="#22d3ee" // Cyan color
-                  radius={[4, 4, 0, 0]} // Rounded top corners
-                  barSize={30}
+                  dataKey="revenue"
+                  fill="#2563eb"
+                  radius={[6, 6, 0, 0]}
+                  barSize={32}
                 />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            // Show if data array is empty
-            <div className="h-full flex items-center justify-center text-zinc-500">
-              No revenue data for the selected period.
+            <div className="h-full flex items-center justify-center text-gray-500 font-bold">
+              No revenue data available.
             </div>
           )}
         </div>

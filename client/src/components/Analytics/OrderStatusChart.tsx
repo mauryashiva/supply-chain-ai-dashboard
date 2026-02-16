@@ -7,10 +7,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  CartesianGrid,
 } from "recharts";
-import type { OrderStatusBreakdownItem } from "@/types"; // Path alias
+import type { OrderStatusBreakdownItem } from "@/types";
 
-// Color mapping for each order status
+/* Color mapping */
 const STATUS_COLORS: { [key: string]: string } = {
   Pending: "#f59e0b",
   Processing: "#3b82f6",
@@ -19,7 +20,7 @@ const STATUS_COLORS: { [key: string]: string } = {
   Delivered: "#22c55e",
   Cancelled: "#ef4444",
   Returned: "#f43f5e",
-  default: "#6b7280", // Fallback color for any unknown status
+  default: "#9ca3af",
 };
 
 interface OrderStatusChartProps {
@@ -27,7 +28,6 @@ interface OrderStatusChartProps {
 }
 
 export const OrderStatusChart: React.FC<OrderStatusChartProps> = ({ data }) => {
-  // Map the incoming data to include the 'fill' color from our STATUS_COLORS object
   const coloredData = data.map((item) => ({
     ...item,
     fill: STATUS_COLORS[item.status] || STATUS_COLORS.default,
@@ -38,44 +38,54 @@ export const OrderStatusChart: React.FC<OrderStatusChartProps> = ({ data }) => {
       <ResponsiveContainer>
         <BarChart
           data={coloredData}
-          layout="vertical" // Display as a horizontal bar chart
+          layout="vertical"
           margin={{ left: 10, right: 30 }}
         >
-          {/* XAxis is numerical but hidden; labels will be on the bars or tooltip */}
+          {/* Grid */}
+          <CartesianGrid stroke="#e5e7eb" horizontal={false} />
+
+          {/* Hidden X axis */}
           <XAxis type="number" hide />
-          {/* YAxis displays the category names (order statuses) */}
+
+          {/* Y axis — ALWAYS BOLD */}
           <YAxis
             type="category"
             dataKey="status"
-            stroke="#a1a1aa"
-            fontSize={12}
+            stroke="#374151"
+            fontSize={13}
             tickLine={false}
             axisLine={false}
-            width={80} // Allocate space for status labels
-            interval={0} // Ensure all labels are shown
+            width={110}
+            interval={0}
+            tick={{ fontWeight: 700, fill: "#111827" }}
           />
+
+          {/* Tooltip — ALL TEXT BOLD */}
           <Tooltip
-            cursor={{ fill: "#ffffff10" }} // Light hover effect on bars
+            cursor={{ fill: "#f3f4f6" }}
             contentStyle={{
-              backgroundColor: "#18181b",
-              border: "1px solid #3f3f46",
-              borderRadius: "0.5rem",
+              backgroundColor: "#ffffff",
+              border: "1px solid #e5e7eb",
+              borderRadius: "8px",
+              fontWeight: "700",
+              color: "#111827",
             }}
-            labelStyle={{ color: "#a1a1aa" }}
-            itemStyle={{ color: "#eee" }}
+            labelStyle={{ fontWeight: 700 }}
+            itemStyle={{ fontWeight: 700 }}
           />
-          {/* This first <Bar> component acts as a background/track for the main bar */}
+
+          {/* Background Track */}
           <Bar
             dataKey="value"
-            fill="#ffffff10"
+            fill="#f3f4f6"
             background={{ fill: "transparent" }}
-            radius={4}
-            barSize={20}
+            radius={6}
+            barSize={22}
             isAnimationActive={false}
           />
-          {/* This second <Bar> is the main component that displays the data */}
-          <Bar dataKey="value" radius={4} barSize={20}>
-            {/* We iterate over the data and use <Cell> to apply a specific color to each bar */}
+
+          {/* Main Bars */}
+          <Bar dataKey="value" radius={6} barSize={22}>
             {coloredData.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.fill} />
             ))}

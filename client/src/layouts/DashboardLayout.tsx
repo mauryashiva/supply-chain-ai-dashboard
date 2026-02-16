@@ -12,23 +12,18 @@ import {
   Menu,
   X,
   FileUp,
-  Brain, // Import the new icon for AI Forecast
+  Brain,
 } from "lucide-react";
-import { cn } from "@/lib/utils"; // Utility for combining class names
-import { SettingsModal } from "@/components/settings/SettingsModal"; // Modal for application settings
+import { cn } from "@/lib/utils";
+import { SettingsModal } from "@/components/settings/SettingsModal";
 
-// Interface for navigation item props
 interface NavItemProps {
-  to: string; // The route path
-  icon: React.ElementType; // The icon component
-  label: string; // The text label
-  isExpanded: boolean; // Whether the sidebar is expanded or collapsed
+  to: string;
+  icon: React.ElementType;
+  label: string;
+  isExpanded: boolean;
 }
 
-/**
- * Reusable navigation link component for the sidebar.
- * Handles active state styling and adapts based on sidebar expansion.
- */
 const NavItem: React.FC<NavItemProps> = ({
   to,
   icon: Icon,
@@ -37,12 +32,11 @@ const NavItem: React.FC<NavItemProps> = ({
 }) => (
   <NavLink
     to={to}
-    // Dynamically apply classes based on active state and sidebar expansion
-    className={({ isActive }: { isActive: boolean }) =>
+    className={({ isActive }) =>
       cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-zinc-400 transition-all hover:text-white hover:bg-zinc-700/50",
-        isActive && "bg-zinc-700 text-white", // Active link style
-        !isExpanded && "justify-center" // Center icon when collapsed
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-600 transition-all hover:text-gray-900 hover:bg-gray-100",
+        isActive && "bg-blue-50 text-blue-600 font-medium",
+        !isExpanded && "justify-center",
       )
     }
   >
@@ -50,8 +44,7 @@ const NavItem: React.FC<NavItemProps> = ({
     <span
       className={cn(
         "overflow-hidden transition-all",
-        // Conditionally show/hide the label based on expansion
-        isExpanded ? "w-full" : "w-0"
+        isExpanded ? "w-full" : "w-0",
       )}
     >
       {label}
@@ -59,192 +52,156 @@ const NavItem: React.FC<NavItemProps> = ({
   </NavLink>
 );
 
-// Define the navigation items for the sidebar
-// Re-ordered and added "AI Forecast"
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/analytics", label: "Analytics", icon: BarChart2 },
-  { to: "/forecast", label: "AI Forecast", icon: Brain }, // New AI Forecast link
+  { to: "/forecast", label: "AI Forecast", icon: Brain },
   { to: "/orders", label: "Orders", icon: Package },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/logistics", label: "Logistics", icon: Truck },
-  { to: "/import", label: "Import / Export", icon: FileUp }, // Moved Import/Export
+  { to: "/import", label: "Import / Export", icon: FileUp },
   { to: "/users", label: "Users", icon: Users },
 ];
 
-/**
- * Sidebar component specifically designed for mobile viewports.
- * Slides in from the left.
- */
-const MobileSidebar: React.FC<{
-  isOpen: boolean;
-  onClose: () => void;
-}> = ({ isOpen, onClose }) => {
+const MobileSidebar: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
+  isOpen,
+  onClose,
+}) => {
   return (
-    // Backdrop overlay
     <div
       className={cn(
-        "fixed inset-0 z-50 bg-black/60 transition-opacity md:hidden",
-        isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        "fixed inset-0 z-50 bg-black/30 transition-opacity md:hidden",
+        isOpen ? "opacity-100" : "opacity-0 pointer-events-none",
       )}
-      onClick={onClose} // Close sidebar on backdrop click
+      onClick={onClose}
     >
-      {/* Sidebar panel */}
       <div
         className={cn(
-          "absolute left-0 top-0 h-full w-72 bg-zinc-900 border-r border-zinc-800 transition-transform duration-300 ease-in-out",
-          isOpen ? "translate-x-0" : "-translate-x-full" // Slide animation
+          "absolute left-0 top-0 h-full w-72 bg-white border-r border-gray-200 transition-transform duration-300",
+          isOpen ? "translate-x-0" : "-translate-x-full",
         )}
-        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside the panel
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          {/* Mobile Sidebar Header */}
-          <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
+        <div className="flex h-full flex-col">
+          <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4">
             <NavLink to="/" className="flex items-center gap-2 font-semibold">
-              <Truck className="h-6 w-6 text-cyan-400" />
-              <span>SupplyChain AI</span>
+              <Truck className="h-6 w-6 text-blue-600" />
+              <span className="text-gray-900">SupplyChain AI</span>
             </NavLink>
             <button onClick={onClose}>
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5 text-gray-600" />
             </button>
           </div>
-          {/* Scrollable Navigation Area */}
-          <div className="flex-1 overflow-y-auto">
-            <nav className="grid items-start p-2 text-sm font-medium">
-              {/* Render navigation items (always expanded on mobile) */}
-              {navItems.map((item) => (
-                <NavItem key={item.to} {...item} isExpanded={true} />
-              ))}
-            </nav>
-          </div>
+
+          <nav className="flex-1 p-2 text-sm font-medium">
+            {navItems.map((item) => (
+              <NavItem key={item.to} {...item} isExpanded={true} />
+            ))}
+          </nav>
         </div>
       </div>
     </div>
   );
 };
 
-/**
- * The main layout component for the entire dashboard.
- * Includes the desktop/mobile sidebars, header, and main content area.
- */
 const DashboardLayout: React.FC = () => {
-  // State for controlling desktop sidebar expansion
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
-  // State for controlling mobile sidebar visibility
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  // State for controlling the settings modal visibility
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  // State acting as a "refresh signal" for child routes using Outlet context.
-  // Incrementing this key triggers effects in child components that depend on settings.
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Callback function passed to SettingsModal. Called when settings are successfully saved.
   const handleSettingsSave = () => {
-    setIsSettingsModalOpen(false); // Close the settings modal
-    setRefreshKey((prevKey) => prevKey + 1); // Trigger the refresh signal by incrementing the key
+    setIsSettingsModalOpen(false);
+    setRefreshKey((prev) => prev + 1);
   };
 
   return (
     <>
-      {/* Settings Modal (rendered outside the main grid) */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        // Pass the callback function to handle successful save
         onSettingsSave={handleSettingsSave}
       />
 
-      {/* Main Grid Layout */}
       <div
         className={cn(
-          "grid min-h-screen w-full bg-zinc-950 text-white transition-[grid-template-columns] duration-300 ease-in-out",
-          // Adjust grid columns based on desktop sidebar state
+          "grid min-h-screen w-full bg-gray-50 text-gray-900 transition-[grid-template-columns] duration-300",
           isSidebarExpanded
-            ? "md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]" // Expanded state
-            : "md:grid-cols-[68px_1fr]" // Collapsed state
+            ? "md:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr]"
+            : "md:grid-cols-[70px_1fr]",
         )}
       >
-        {/* --- DESKTOP SIDEBAR --- (Hidden on small screens) */}
-        <div className="hidden border-r border-zinc-800 bg-zinc-900/50 md:block">
-          <div className="flex h-full max-h-screen flex-col gap-2">
-            {/* Desktop Sidebar Header */}
-            <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4 lg:h-[60px]">
+        {/* Desktop Sidebar */}
+        <div className="hidden border-r border-gray-200 bg-white md:block shadow-sm">
+          <div className="flex h-full flex-col">
+            <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4">
               <NavLink
                 to="/"
                 className="flex items-center gap-2 font-semibold overflow-hidden"
               >
-                <Truck className="h-6 w-6 text-cyan-400 flex-shrink-0" />
+                <Truck className="h-6 w-6 text-blue-600 flex-shrink-0" />
                 <span
                   className={cn(
                     "whitespace-nowrap transition-opacity",
-                    isSidebarExpanded ? "opacity-100" : "opacity-0" // Fade label in/out
+                    isSidebarExpanded ? "opacity-100" : "opacity-0",
                   )}
                 >
                   SupplyChain AI
                 </span>
               </NavLink>
-              {/* Sidebar expand/collapse button */}
+
               <button
                 onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-                className="p-2 rounded-md hover:bg-zinc-700/50"
+                className="p-2 rounded-md hover:bg-gray-100"
               >
                 <PanelLeft
                   className={cn(
                     "h-5 w-5 transition-transform",
-                    !isSidebarExpanded && "rotate-180" // Rotate icon when collapsed
+                    !isSidebarExpanded && "rotate-180",
                   )}
                 />
               </button>
             </div>
-            {/* Scrollable Navigation Area */}
-            <div className="flex-1 overflow-y-auto">
-              <nav className="grid items-start px-2 text-sm font-medium">
-                {/* Render navigation items, passing the expansion state */}
-                {navItems.map((item) => (
-                  <NavItem
-                    key={item.to}
-                    {...item}
-                    isExpanded={isSidebarExpanded}
-                  />
-                ))}
-              </nav>
-            </div>
+
+            <nav className="flex-1 px-2 py-2 text-sm font-medium">
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.to}
+                  {...item}
+                  isExpanded={isSidebarExpanded}
+                />
+              ))}
+            </nav>
           </div>
         </div>
 
-        {/* --- MAIN CONTENT AREA --- */}
+        {/* Main Area */}
         <div className="flex flex-col h-screen overflow-hidden">
-          {/* Header Bar */}
-          <header className="flex h-14 flex-shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-900/50 px-4 lg:h-[60px] lg:px-6">
-            {/* Mobile menu button (visible only on small screens) */}
+          <header className="flex h-14 items-center gap-4 border-b border-gray-200 bg-white px-4 shadow-sm">
             <button
               className="md:hidden p-2 -ml-2"
               onClick={() => setIsMobileSidebarOpen(true)}
             >
               <Menu className="h-5 w-5" />
             </button>
-            {/* Spacer to push icons to the right */}
-            <div className="w-full flex-1"></div>
-            {/* Header Icons (Notifications, Settings) */}
-            <Bell className="h-5 w-5 text-zinc-400" />
+
+            <div className="flex-1"></div>
+
+            <Bell className="h-5 w-5 text-gray-600" />
+
             <button
               onClick={() => setIsSettingsModalOpen(true)}
-              className="p-1 rounded-full hover:bg-zinc-700/50"
-              title="Settings"
+              className="p-1 rounded-full hover:bg-gray-100"
             >
-              <Settings className="h-5 w-5 text-zinc-400" />
+              <Settings className="h-5 w-5 text-gray-600" />
             </button>
           </header>
 
-          {/* Main Content Area: Renders the active route's component */}
-          <main className="flex-1 p-4 sm:p-6 bg-zinc-950 overflow-auto">
-            {/* Outlet renders the matched child route component */}
-            {/* Pass the refreshKey via context to child routes */}
+          <main className="flex-1 p-4 sm:p-6 bg-gray-50 overflow-auto">
             <Outlet context={{ refreshKey }} />
           </main>
         </div>
 
-        {/* Mobile Sidebar Component (controlled by state) */}
         <MobileSidebar
           isOpen={isMobileSidebarOpen}
           onClose={() => setIsMobileSidebarOpen(false)}

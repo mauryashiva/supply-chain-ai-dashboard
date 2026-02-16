@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 
 from app.models import models
 from app.database import Base
-from app.models.models import StockStatus
 
 load_dotenv()
 

@@ -1,5 +1,4 @@
 import React from "react";
-// Import types using a path alias
 import type { AnalyticsSummary } from "@/types";
 
 interface KpiCardGridProps {
@@ -9,27 +8,28 @@ interface KpiCardGridProps {
 export const KpiCardGrid: React.FC<KpiCardGridProps> = ({ kpi_cards }) => {
   return (
     <>
-      {/* We only want to display the first 6 cards, so we use slice */}
       {kpi_cards.slice(0, 6).map((card, index) => (
         <div
           key={index}
-          className="bg-zinc-900 rounded-lg shadow-lg p-4 border border-zinc-800"
+          className="bg-white rounded-xl shadow-sm p-5 border border-gray-200 hover:shadow-md transition"
         >
-          <h3 className="text-sm font-medium text-zinc-400 mb-1 truncate">
+          {/* Title — ALWAYS BOLD */}
+          <h3 className="text-sm font-bold text-gray-700 mb-1 truncate">
             {card.title}
           </h3>
-          <p className="text-2xl font-bold text-white">{card.value}</p>
 
-          {/* Conditionally render the 'change' text only if it exists */}
+          {/* Value — ALWAYS BOLD */}
+          <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+
+          {/* Change — ALWAYS BOLD */}
           {card.change && (
             <p
-              className={`text-xs ${
-                // Apply dynamic text color based on the change value
+              className={`text-xs font-bold ${
                 card.change.startsWith("+")
-                  ? "text-green-400" // Green for positive
+                  ? "text-green-600"
                   : card.change.startsWith("-")
-                  ? "text-red-400" // Red for negative
-                  : "text-zinc-400" // Neutral for no change
+                    ? "text-red-600"
+                    : "text-gray-600"
               }`}
             >
               {card.change}

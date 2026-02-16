@@ -30,7 +30,7 @@ const OrdersPage: React.FC = () => {
       const res = await getOrders();
       setOrders(res.data || []);
     } catch (err) {
-      console.error("Failed to fetch orders", err);
+      console.error(err);
     }
   };
 
@@ -47,8 +47,7 @@ const OrdersPage: React.FC = () => {
         ]);
         setOrders(ordersRes.data || []);
         setProducts(productsRes.data || []);
-      } catch (err) {
-        console.error(err);
+      } catch {
         setError("Failed to load orders.");
       } finally {
         setLoading(false);
@@ -57,15 +56,12 @@ const OrdersPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // SAFE SEARCH (no crash)
   const filteredOrders = orders.filter((o) => {
-    const name = (o.customer_name || "").toLowerCase();
-    const email = (o.customer_email || "").toLowerCase();
-    const id = o.id?.toString() || "";
     const search = searchTerm.toLowerCase();
-
     return (
-      name.includes(search) || email.includes(search) || id.includes(search)
+      (o.customer_name || "").toLowerCase().includes(search) ||
+      (o.customer_email || "").toLowerCase().includes(search) ||
+      o.id?.toString().includes(search)
     );
   });
 
@@ -75,18 +71,6 @@ const OrdersPage: React.FC = () => {
   const handleOrderUpdated = (updatedOrder: Order) =>
     setOrders(orders.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
 
-  const handleViewClick = (order: Order) => setViewingOrder(order);
-
-  const handleEditClick = (order: Order) => {
-    setEditingOrder(order);
-    setIsEditModalOpen(true);
-  };
-
-  const handleDeleteClick = (order: Order) => {
-    setOrderToDelete(order);
-    setIsConfirmModalOpen(true);
-  };
-
   const handleConfirmDelete = async () => {
     if (!orderToDelete) return;
     setIsDeleting(true);
@@ -94,16 +78,9 @@ const OrdersPage: React.FC = () => {
       await deleteOrder(orderToDelete.id);
       setOrders(orders.filter((o) => o.id !== orderToDelete.id));
       setIsConfirmModalOpen(false);
-      setOrderToDelete(null);
-    } catch (error) {
-      console.error("Delete failed:", error);
     } finally {
       setIsDeleting(false);
     }
-  };
-
-  const handleProductAdded = (newProduct: Product) => {
-    setProducts((prev) => [newProduct, ...prev]);
   };
 
   return (
@@ -113,7 +90,7 @@ const OrdersPage: React.FC = () => {
         onClose={() => setIsAddModalOpen(false)}
         onOrderAdded={handleOrderAdded}
         products={products}
-        onProductAdded={handleProductAdded}
+        onProductAdded={(p) => setProducts((prev) => [p, ...prev])}
       />
 
       <EditOrderModal
@@ -138,33 +115,37 @@ const OrdersPage: React.FC = () => {
         loading={isDeleting}
       />
 
-      <div className="bg-zinc-900 rounded-lg shadow-lg p-6">
+      <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Order Management</h1>
-            <p className="text-sm text-zinc-400">
-              Track and manage customer orders.
+            <h1 className="text-2xl font-bold text-gray-900">
+              Order Management
+            </h1>
+            <p className="text-sm font-bold text-gray-600">
+              Track and manage customer orders
             </p>
           </div>
 
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2 rounded-lg shadow-sm transition"
           >
             <PlusCircle size={18} />
             Add Order
           </button>
         </div>
 
-        <div className="mb-4">
+        {/* Search */}
+        <div className="mb-5">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
             <input
               type="text"
               placeholder="Search order id, name, email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-cyan-500"
+              className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-4 py-2 font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
         </div>
@@ -173,9 +154,15 @@ const OrdersPage: React.FC = () => {
           loading={loading}
           error={error}
           orders={filteredOrders}
-          onView={handleViewClick}
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
+          onView={(o) => setViewingOrder(o)}
+          onEdit={(o) => {
+            setEditingOrder(o);
+            setIsEditModalOpen(true);
+          }}
+          onDelete={(o) => {
+            setOrderToDelete(o);
+            setIsConfirmModalOpen(true);
+          }}
         />
       </div>
     </>
