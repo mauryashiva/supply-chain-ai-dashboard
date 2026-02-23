@@ -5,22 +5,25 @@ import {
   updateAddress,
   deleteAddress,
 } from "@/services/api";
+import { cn } from "@/lib/utils";
 
-/* ---------- FIELD COMPONENT OUTSIDE (IMPORTANT) ---------- */
+/* ---------- REUSABLE FIELD COMPONENT ---------- */
 const Field = ({ label, value, onChange, color = "cyan", maxLength }: any) => {
   return (
     <div className="relative">
-      <label className="block text-xs text-zinc-400 mb-1 ml-1">{label}</label>
+      <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 ml-1">
+        {label}
+      </label>
       <input
         value={value}
         maxLength={maxLength}
         onChange={onChange}
-        className={`w-full bg-zinc-950 border rounded-xl px-4 py-3 text-white outline-none transition
-        ${
+        className={cn(
+          "w-full bg-secondary border rounded-xl px-4 py-3 text-foreground outline-none transition focus:ring-1",
           color === "amber"
             ? "border-amber-600 focus:border-amber-400 focus:ring-amber-400/30"
-            : "border-zinc-800 focus:border-cyan-500 focus:ring-cyan-500/30"
-        } focus:ring-1`}
+            : "border-border focus:border-cyan-500 focus:ring-cyan-500/30",
+        )}
       />
     </div>
   );
@@ -37,7 +40,7 @@ export const AddressSelector = ({ onSelect }: any) => {
     phone_number: "",
     flat: "",
     area: "",
-    landmark: "",
+    landmark: "", // Landmark restored in state
     city: "",
     state: "",
     pincode: "",
@@ -48,14 +51,17 @@ export const AddressSelector = ({ onSelect }: any) => {
   const [form, setForm] = useState(emptyForm);
 
   const fetchAddresses = async () => {
-    const res = await getMyAddresses();
-    setAddresses(res.data);
-
-    if (res.data.length > 0) {
-      const defaultAddr =
-        res.data.find((a: any) => a.is_default) || res.data[0];
-      setSelectedId(defaultAddr.id);
-      onSelect(defaultAddr);
+    try {
+      const res = await getMyAddresses();
+      setAddresses(res.data);
+      if (res.data.length > 0) {
+        const defaultAddr =
+          res.data.find((a: any) => a.is_default) || res.data[0];
+        setSelectedId(defaultAddr.id);
+        onSelect(defaultAddr);
+      }
+    } catch (err) {
+      console.error("Failed to fetch addresses:", err);
     }
   };
 
@@ -75,29 +81,27 @@ export const AddressSelector = ({ onSelect }: any) => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this address?")) return;
+    if (!confirm("Delete this entry from the manifest?")) return;
     await deleteAddress(id);
-    setEditingId(null);
-    setShowForm(false);
+    if (editingId === id) setShowForm(false);
     fetchAddresses();
   };
 
   const handleSave = async () => {
     if (!form.full_name || !form.phone_number || !form.city)
-      return alert("Please fill required fields");
+      return alert("Incomplete deployment data.");
 
-    if (!form.flat.trim()) return alert("Please enter House / Flat / Building");
-
-    if (editingId) {
-      await updateAddress(editingId, form);
-    } else {
-      await createAddress(form);
+    try {
+      if (editingId) {
+        await updateAddress(editingId, form);
+      } else {
+        await createAddress(form);
+      }
+      setShowForm(false);
+      fetchAddresses();
+    } catch (err) {
+      alert("Transmission failed.");
     }
-
-    setForm(emptyForm);
-    setEditingId(null);
-    setShowForm(false);
-    fetchAddresses();
   };
 
   return (
@@ -105,14 +109,14 @@ export const AddressSelector = ({ onSelect }: any) => {
       {addresses.map((addr) => (
         <div
           key={addr.id}
-          className={`p-px rounded-2xl
-          ${
+          className={cn(
+            "p-px rounded-2xl transition-all duration-300",
             selectedId === addr.id
-              ? "bg-linear-to-r from-cyan-500 to-blue-500"
-              : "bg-zinc-800/50"
-          }`}
+              ? "bg-linear-to-r from-cyan-500 to-blue-500 shadow-lg shadow-cyan-500/20"
+              : "bg-border/50",
+          )}
         >
-          <div className="bg-zinc-950 rounded-2xl p-5 border border-zinc-800">
+          <div className="bg-card rounded-2xl p-5 border border-border">
             <div
               className="flex gap-4 cursor-pointer"
               onClick={() => handleSelect(addr)}
@@ -121,36 +125,37 @@ export const AddressSelector = ({ onSelect }: any) => {
                 type="radio"
                 checked={selectedId === addr.id}
                 readOnly
-                className="mt-1 accent-cyan-500"
+                className="mt-1 accent-cyan-500 h-4 w-4"
               />
-
               <div className="flex-1">
-                <p className="font-semibold text-white text-lg">
+                <p className="font-bold text-foreground text-lg tracking-tight">
                   {addr.full_name}
                 </p>
-                <p className="text-sm text-zinc-400 mt-1">
+                <p className="text-sm text-muted-foreground mt-1 font-medium">
                   {addr.phone_number}
                 </p>
-                <p className="text-sm text-zinc-400 mt-1">
-                  {addr.flat}, {addr.area}, {addr.city}, {addr.state} -{" "}
-                  {addr.pincode}
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                  {addr.flat}, {addr.area},{" "}
+                  {addr.landmark && `${addr.landmark}, `} {addr.city},{" "}
+                  {addr.state} -{" "}
+                  <span className="font-bold text-foreground">
+                    {addr.pincode}
+                  </span>
                 </p>
               </div>
             </div>
-
-            <div className="flex gap-6 mt-4 text-sm">
+            <div className="flex gap-6 mt-4 text-[11px] font-black uppercase tracking-widest">
               <button
                 onClick={() => handleEdit(addr)}
-                className="text-blue-400"
+                className="text-cyan-600 dark:text-cyan-400"
               >
-                Edit
+                Edit_Details
               </button>
-
               <button
                 onClick={() => handleDelete(addr.id)}
-                className="text-red-400"
+                className="text-destructive"
               >
-                Delete
+                Delete_Entry
               </button>
             </div>
           </div>
@@ -164,14 +169,26 @@ export const AddressSelector = ({ onSelect }: any) => {
             setEditingId(null);
             setForm(emptyForm);
           }}
-          className="w-full py-3 rounded-xl bg-linear-to-r from-cyan-500 to-blue-500 text-black font-semibold"
+          className="w-full py-4 rounded-xl bg-linear-to-r from-cyan-500 to-blue-500 text-white dark:text-black font-black text-xs uppercase tracking-[0.2em]"
         >
           + Add New Address
         </button>
       )}
 
       {showForm && (
-        <div className="bg-zinc-950 p-6 rounded-2xl border border-zinc-800 space-y-4">
+        <div className="bg-card p-6 rounded-2xl border border-border space-y-4 animate-in fade-in zoom-in-95 duration-300">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-black uppercase tracking-widest text-foreground">
+              {editingId ? "Modify_Location" : "New_Deployment_Point"}
+            </h3>
+            <button
+              onClick={() => setShowForm(false)}
+              className="text-[10px] font-black uppercase text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+
           <Field
             label="Full Name"
             value={form.full_name}
@@ -179,7 +196,6 @@ export const AddressSelector = ({ onSelect }: any) => {
               setForm({ ...form, full_name: e.target.value })
             }
           />
-
           <Field
             label="Phone Number"
             maxLength={10}
@@ -187,34 +203,25 @@ export const AddressSelector = ({ onSelect }: any) => {
             onChange={(e: any) =>
               setForm({
                 ...form,
-                phone_number: e.target.value.replace(/\D/g, "").slice(0, 10),
+                phone_number: e.target.value.replace(/\D/g, ""),
               })
             }
           />
-
           <Field
-            label="Flat / House No / Building Name"
+            label="Flat / Building"
             color="amber"
-            maxLength={40}
             value={form.flat}
-            onChange={(e: any) =>
-              setForm({
-                ...form,
-                flat: e.target.value
-                  .replace(/[^a-zA-Z0-9\- ]/g, "") // allow letters, numbers, space, hyphen
-                  .slice(0, 40),
-              })
-            }
+            onChange={(e: any) => setForm({ ...form, flat: e.target.value })}
           />
-
           <Field
             label="Area / Street"
             value={form.area}
             onChange={(e: any) => setForm({ ...form, area: e.target.value })}
           />
 
+          {/* LANDMARK RESTORED HERE */}
           <Field
-            label="Landmark"
+            label="Landmark (Optional)"
             value={form.landmark}
             onChange={(e: any) =>
               setForm({ ...form, landmark: e.target.value })
@@ -227,7 +234,6 @@ export const AddressSelector = ({ onSelect }: any) => {
               value={form.city}
               onChange={(e: any) => setForm({ ...form, city: e.target.value })}
             />
-
             <Field
               label="State"
               value={form.state}
@@ -240,18 +246,15 @@ export const AddressSelector = ({ onSelect }: any) => {
             maxLength={6}
             value={form.pincode}
             onChange={(e: any) =>
-              setForm({
-                ...form,
-                pincode: e.target.value.replace(/\D/g, "").slice(0, 6),
-              })
+              setForm({ ...form, pincode: e.target.value.replace(/\D/g, "") })
             }
           />
 
           <button
             onClick={handleSave}
-            className="w-full py-3 rounded-lg bg-linear-to-r from-green-500 to-emerald-500 text-black font-semibold"
+            className="w-full py-4 rounded-xl bg-linear-to-r from-emerald-500 to-teal-500 text-white dark:text-black font-black text-xs uppercase tracking-[0.2em] mt-4"
           >
-            {editingId ? "Update Address" : "Save Address"}
+            {editingId ? "Commit Changes" : "Save Location"}
           </button>
         </div>
       )}

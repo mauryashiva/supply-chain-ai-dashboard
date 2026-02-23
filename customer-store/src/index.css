@@ -2,9 +2,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* Define custom variants */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
+  /* Border Radius */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -12,6 +14,8 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Shadcn UI Colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -30,11 +34,15 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Chart Colors */
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+
+  /* Sidebar Colors */
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -46,6 +54,7 @@
 }
 
 :root {
+  /* Shadcn OKLCH Variables */
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -78,6 +87,18 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
+
+  /* Custom Visualization Variables */
+  --grid-color: #e5e7eb;
+  --axis-text: #111827;
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #e5e7eb;
+  --tooltip-text: #111827;
+  --tooltip-hover: #f3f4f6;
+  --bar-color: #2563eb;
+  --bar-track: #f3f4f6;
+  --line-color: #2563eb;
+  --line-dot: #1d4ed8;
 }
 
 .dark {
@@ -112,6 +133,18 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
+
+  /* Dark Variant Visualizations */
+  --grid-color: #3f3f46;
+  --axis-text: #e4e4e7;
+  --tooltip-bg: #18181b;
+  --tooltip-border: #3f3f46;
+  --tooltip-text: #ffffff;
+  --tooltip-hover: #27272a;
+  --bar-color: #60a5fa;
+  --bar-track: #18181b;
+  --line-color: #60a5fa;
+  --line-dot: #3b82f6;
 }
 
 @layer base {
@@ -121,4 +154,13 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Global Transitions for Smooth Dark Mode Toggle */
+html,
+* {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
 }

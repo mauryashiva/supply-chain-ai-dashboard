@@ -47,23 +47,22 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  // Mobile-friendly input heights and padding
+  // Mobile-friendly input styles integrated with theme variables
   const inputClass =
-    "w-full bg-white border border-transparent rounded-xl px-4 py-3.5 text-base sm:text-sm text-zinc-950 placeholder:text-zinc-400 focus:ring-4 focus:ring-yellow-500/30 outline-none transition-all appearance-none";
+    "w-full bg-secondary border border-border rounded-xl px-4 py-3.5 text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:ring-4 focus:ring-yellow-500/30 outline-none transition-all appearance-none";
 
   const labelClass =
-    "block text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-white mb-2 ml-1";
+    "block text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-foreground mb-2 ml-1 opacity-80";
 
   return (
-    // overflow-x-hidden prevents accidental side-scrolling on mobile
-    <div className="min-h-screen bg-[#FDFDFD] flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden w-full">
-      {/* MOBILE RESPONSIVE CARD: Full width on mobile, max-width on desktop */}
-      <div className="w-full max-w-105 bg-blue-700 border border-blue-800 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-[0_30px_60px_-15px_rgba(37,99,235,0.3)]">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden w-full transition-colors duration-300">
+      {/* AUTH CARD: Theme-aware background and borders */}
+      <div className="w-full max-w-105 bg-card border border-border rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl transition-all duration-300">
         <header className="mb-8 sm:mb-10">
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tighter text-white uppercase italic">
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tighter text-foreground uppercase italic">
             {isLogin ? "Welcome Back" : "Create Account"}
           </h2>
-          <p className="text-blue-100 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mt-2">
+          <p className="text-muted-foreground text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mt-2">
             {isLogin
               ? "Login to continue"
               : "Create account using Email & Password"}
@@ -73,7 +72,7 @@ export const AuthPage: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
           {/* EMAIL */}
-          <div>
+          <div className="group">
             <label className={labelClass}>Email Address</label>
             <input
               type="email"
@@ -87,7 +86,7 @@ export const AuthPage: React.FC = () => {
           </div>
 
           {/* PASSWORD */}
-          <div>
+          <div className="group">
             <label className={labelClass}>Password</label>
             <input
               type="password"
@@ -100,7 +99,7 @@ export const AuthPage: React.FC = () => {
             />
           </div>
 
-          {/* SUBMIT BUTTON: Larger touch area for mobile */}
+          {/* SUBMIT BUTTON */}
           <button
             type="submit"
             disabled={loading}
@@ -117,10 +116,10 @@ export const AuthPage: React.FC = () => {
         </form>
 
         {/* TOGGLE AUTH */}
-        <div className="mt-8 sm:mt-10 pt-6 sm:pt-8 border-t border-white/10 text-center">
+        <div className="mt-8 sm:mt-10 pt-6 sm:pt-8 border-t border-border text-center">
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-[10px] sm:text-xs font-black text-white hover:text-yellow-400 uppercase tracking-widest transition-colors"
+            className="text-[10px] sm:text-xs font-black text-muted-foreground hover:text-yellow-500 dark:hover:text-yellow-400 uppercase tracking-widest transition-colors"
           >
             {isLogin
               ? "Don't have an account? Sign Up"

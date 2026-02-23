@@ -11,6 +11,7 @@ import {
   ArrowRight,
   PackageX,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const CheckoutPage: React.FC = () => {
   const { items, getTotalPrice, clearCart } = useCartStore();
@@ -62,7 +63,7 @@ export const CheckoutPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-sans">
+    <div className="min-h-screen bg-background text-foreground font-sans transition-colors duration-300">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-6 py-16">
@@ -71,7 +72,7 @@ export const CheckoutPage: React.FC = () => {
           <h1 className="text-4xl font-black italic tracking-tighter uppercase mb-2">
             Secure_Checkout
           </h1>
-          <p className="text-zinc-500 text-sm tracking-widest font-bold">
+          <p className="text-muted-foreground text-sm tracking-widest font-bold">
             STEP 02 / REVIEW & FINALIZE
           </p>
         </div>
@@ -86,28 +87,28 @@ export const CheckoutPage: React.FC = () => {
                   Delivery_Address
                 </h2>
               </div>
-              <div className="bg-zinc-900/30 rounded-3xl border border-white/5 p-2">
+              <div className="bg-secondary/30 rounded-3xl border border-border p-2">
                 <AddressSelector onSelect={setSelectedAddress} />
               </div>
             </section>
 
             <section className="space-y-6">
-              <div className="flex items-center gap-3 border-l-2 border-zinc-700 pl-4">
-                <CreditCard className="text-zinc-500 h-5 w-5" />
+              <div className="flex items-center gap-3 border-l-2 border-border pl-4">
+                <CreditCard className="text-muted-foreground h-5 w-5" />
                 <h2 className="text-xl font-bold uppercase tracking-tight">
                   Payment_Method
                 </h2>
               </div>
-              <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-3xl flex items-center justify-between group">
+              <div className="bg-card border border-border p-6 rounded-3xl flex items-center justify-between group transition-all">
                 <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 bg-zinc-800 rounded-xl flex items-center justify-center">
-                    <span className="text-xs font-black text-cyan-400">
+                  <div className="h-10 w-10 bg-secondary rounded-xl flex items-center justify-center">
+                    <span className="text-xs font-black text-cyan-600 dark:text-cyan-400">
                       COD
                     </span>
                   </div>
                   <div>
                     <p className="font-bold text-sm">Cash On Delivery</p>
-                    <p className="text-[10px] text-zinc-500 font-bold tracking-widest uppercase">
+                    <p className="text-[10px] text-muted-foreground font-black tracking-widest uppercase">
                       Default Selection
                     </p>
                   </div>
@@ -119,33 +120,33 @@ export const CheckoutPage: React.FC = () => {
             </section>
           </div>
 
-          {/* RIGHT — ORDER SUMMARY (Amazon-Style Sticky) */}
+          {/* RIGHT — ORDER SUMMARY */}
           <div className="w-full lg:w-100">
-            <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 sticky top-28 shadow-2xl">
-              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-zinc-500 mb-8 border-b border-white/5 pb-4">
+            <div className="bg-card/80 backdrop-blur-xl border border-border rounded-[2.5rem] p-8 sticky top-28 shadow-2xl transition-all">
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground mb-8 border-b border-border pb-4">
                 Order_Invoice
               </h3>
 
-              <div className="space-y-6 max-h-87.5 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-6 max-h-87.5 overflow-y-auto pr-2 no-scrollbar">
                 {items.map((item) => (
                   <div key={item.id} className="group relative">
                     <div className="flex justify-between items-start">
                       <div className="space-y-1">
-                        <p className="text-sm font-bold text-zinc-200 line-clamp-1">
+                        <p className="text-sm font-bold text-foreground line-clamp-1">
                           {item.name}
                         </p>
-                        <p className="text-[10px] font-black text-zinc-500 uppercase italic">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase italic">
                           Qty: {item.quantity} × ₹
                           {item.selling_price.toLocaleString()}
                         </p>
                       </div>
-                      <span className="text-sm font-black text-white italic">
+                      <span className="text-sm font-black text-foreground italic">
                         ₹{(item.selling_price * item.quantity).toLocaleString()}
                       </span>
                     </div>
 
                     {item.stock_quantity <= 0 && (
-                      <div className="mt-2 flex items-center gap-2 text-red-500">
+                      <div className="mt-2 flex items-center gap-2 text-destructive">
                         <PackageX size={12} />
                         <span className="text-[10px] font-bold uppercase">
                           Critical_Out_of_Stock
@@ -157,18 +158,20 @@ export const CheckoutPage: React.FC = () => {
               </div>
 
               {/* TOTALS AREA */}
-              <div className="mt-10 pt-8 border-t border-white/10 space-y-4">
-                <div className="flex justify-between text-[11px] font-bold text-zinc-500 uppercase tracking-widest">
+              <div className="mt-10 pt-8 border-t border-border space-y-4">
+                <div className="flex justify-between text-[11px] font-black text-muted-foreground uppercase tracking-widest">
                   <span>Shipping</span>
-                  <span className="text-cyan-400">Calculated_at_Door</span>
+                  <span className="text-cyan-600 dark:text-cyan-400">
+                    Calculated_at_Door
+                  </span>
                 </div>
 
                 <div className="flex justify-between items-end">
-                  <span className="text-sm font-black text-zinc-400 uppercase tracking-tighter italic">
+                  <span className="text-sm font-black text-muted-foreground uppercase tracking-tighter italic">
                     Total_Payable
                   </span>
                   <div className="text-right">
-                    <span className="block text-3xl font-black text-white italic tracking-tighter">
+                    <span className="block text-3xl font-black text-foreground italic tracking-tighter">
                       ₹{totalAmount.toLocaleString()}
                     </span>
                   </div>
@@ -184,12 +187,12 @@ export const CheckoutPage: React.FC = () => {
                   hasOutOfStock ||
                   !selectedAddress
                 }
-                className={`mt-8 group/btn relative w-full h-16 flex items-center justify-center overflow-hidden rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all duration-500
-                  ${
-                    hasOutOfStock || !selectedAddress || items.length === 0
-                      ? "bg-zinc-800 text-zinc-600 cursor-not-allowed border border-white/5"
-                      : "bg-yellow-500 text-black hover:bg-yellow-400 hover:shadow-[0_0_40px_rgba(234,179,8,0.2)] active:scale-95"
-                  }`}
+                className={cn(
+                  "mt-8 group/btn relative w-full h-16 flex items-center justify-center overflow-hidden rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all duration-500",
+                  hasOutOfStock || !selectedAddress || items.length === 0
+                    ? "bg-muted text-muted-foreground cursor-not-allowed border border-border"
+                    : "bg-yellow-500 text-black hover:bg-yellow-400 hover:shadow-[0_0_40px_rgba(234,179,8,0.2)] active:scale-95",
+                )}
               >
                 <span className="relative z-10 flex items-center gap-3">
                   {loading ? (
@@ -207,7 +210,7 @@ export const CheckoutPage: React.FC = () => {
                 </span>
               </button>
 
-              <div className="mt-6 flex items-center justify-center gap-2 text-[10px] font-bold text-zinc-600 uppercase">
+              <div className="mt-6 flex items-center justify-center gap-2 text-[10px] font-black text-muted-foreground uppercase">
                 <ShieldCheck className="h-3 w-3" />
                 End-to-End Secure Processing
               </div>
