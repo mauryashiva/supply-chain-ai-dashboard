@@ -176,6 +176,14 @@ app.include_router(bulk_orders.router, prefix="/api")
 
 
 # ================================
+# Health Check Endpoint
+# Used by monitoring services
+# ================================
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+# ================================
 # Root Endpoint
 # ================================
 @app.get("/")
