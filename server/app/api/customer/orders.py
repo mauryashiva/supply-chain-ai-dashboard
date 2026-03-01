@@ -32,7 +32,7 @@ async def get_my_orders(
 
 
 # ================================
-# PLACE ORDER (UPDATED FOR ADDRESS SYSTEM)
+# PLACE ORDER (GST INCLUDED PRICING)
 # ================================
 @router.post("/place-order", status_code=status.HTTP_201_CREATED)
 async def place_order(
@@ -41,6 +41,7 @@ async def place_order(
     current_user: models.User = Depends(get_current_user)
 ):
     try:
+
         # ================================
         # 1. VALIDATE ADDRESS
         # ================================
@@ -54,6 +55,7 @@ async def place_order(
 
         total_subtotal = 0.0
         total_gst_amount = 0.0
+        total_amount = 0.0
 
         # ================================
         # 2. CREATE ORDER BASE
@@ -62,7 +64,6 @@ async def place_order(
             user_id=current_user.id,
             address_id=address.id,
 
-            # Auto-fill from Address + User
             customer_name=address.full_name,
             customer_email=current_user.email,
             phone_number=address.phone_number,
@@ -80,9 +81,10 @@ async def place_order(
         db.flush()
 
         # ================================
-        # 3. PROCESS ITEMS + DEDUCT STOCK
+        # 3. PROCESS ITEMS
         # ================================
         for item in order_data.items:
+
             product = (
                 db.query(models.Product)
                 .filter(models.Product.id == item.product_id)
@@ -105,19 +107,29 @@ async def place_order(
             # Deduct stock
             product.stock_quantity -= item.quantity
 
-            # Financial calculation
-            item_price = product.selling_price or 0.0
-            item_subtotal = item_price * item.quantity
-            item_gst = item_subtotal * ((product.gst_rate or 0.0) / 100)
+            price_including_gst = product.selling_price or 0.0
+            gst_rate = product.gst_rate or 0.0
+
+            # ================================
+            # GST EXTRACTION (IMPORTANT)
+            # ================================
+            taxable_price = price_including_gst / (1 + gst_rate / 100) if gst_rate else price_including_gst
+            gst_amount = price_including_gst - taxable_price
+
+            item_subtotal = taxable_price * item.quantity
+            item_gst = gst_amount * item.quantity
+            item_total = price_including_gst * item.quantity
 
             total_subtotal += item_subtotal
             total_gst_amount += item_gst
+            total_amount += item_total
 
             order_item = models.OrderItem(
                 order_id=new_order.id,
                 product_id=product.id,
                 quantity=item.quantity
             )
+
             db.add(order_item)
 
         # ================================
@@ -126,11 +138,7 @@ async def place_order(
         new_order.subtotal = total_subtotal
         new_order.total_gst = total_gst_amount
 
-        final_total = (
-            total_subtotal +
-            total_gst_amount +
-            (order_data.shipping_charges or 0.0)
-        )
+        final_total = total_amount + (order_data.shipping_charges or 0.0)
 
         if order_data.discount_type == models.DiscountType.percentage:
             final_total -= total_subtotal * ((order_data.discount_value or 0) / 100)
@@ -145,7 +153,7 @@ async def place_order(
         db.commit()
 
         # ================================
-        # 6. REAL-TIME SYNC
+        # 6. REAL TIME SYNC
         # ================================
         await manager.broadcast("inventory_updated")
         await manager.broadcast("order_updated")

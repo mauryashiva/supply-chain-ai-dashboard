@@ -145,7 +145,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-lg p-4 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-zinc-400">
-                  Subtotal
+                  Taxable Amount
                 </span>
                 <span className="font-semibold">
                   {formatCurrency(order.subtotal)}
@@ -173,8 +173,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               )}
 
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-zinc-400">GST</span>
-                <span>+{formatCurrency(order.total_gst)}</span>
+                <span className="text-gray-600 dark:text-zinc-400">
+                  GST (Included)
+                </span>
+                <span>{formatCurrency(order.total_gst)}</span>
               </div>
 
               <div className="flex justify-between">
