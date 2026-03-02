@@ -3,10 +3,10 @@ import { useEffect } from "react";
 export const useInventorySocket = (onUpdate: () => void) => {
   useEffect(() => {
     // Get backend URL from ENV
-    const baseUrl = import.meta.env.VITE_BACKEND_URL;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
     if (!baseUrl) {
-      console.error("VITE_BACKEND_URL is missing in .env");
+      console.error("VITE_API_BASE_URL is missing in .env");
       return;
     }
 

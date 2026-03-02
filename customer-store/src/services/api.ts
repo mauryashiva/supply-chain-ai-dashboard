@@ -5,7 +5,7 @@ import axios from "axios";
   Local  -> http://127.0.0.1:8000
   Prod   -> https://your-render-backend.onrender.com
 */
-const API_URL = `${import.meta.env.VITE_API_URL}/api`;
+const API_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
 const apiClient = axios.create({
   baseURL: API_URL,
