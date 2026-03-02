@@ -6,6 +6,8 @@ from ..schemas import schemas
 from ..models import models
 # Import the WebSocket manager to sync inventory changes live
 from ..core.websocket_manager import manager 
+from sqlalchemy import func # Import func for database-level time
+from datetime import datetime, timezone # Use modern timezone-aware dates
 
 router = APIRouter()
 
@@ -94,6 +96,7 @@ async def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)
     client_data = order.model_dump(exclude_unset=True, exclude={"items"})
     db_order = models.Order(
         **client_data,
+        order_date=datetime.now(timezone.utc),
         subtotal=round(subtotal, 2),
         total_gst=round(total_gst, 2),
         total_amount=round(total_amount, 2)

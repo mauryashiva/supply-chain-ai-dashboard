@@ -248,7 +248,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                   hour: "2-digit",
                   minute: "2-digit",
                   hour12: true,
-                  timeZone: "Asia/Kolkata", // Forces the correct India time display
+                  timeZone: "Asia/Kolkata", // <--- THIS IS THE CRITICAL LINE
                 })}
               </span>
             </div>

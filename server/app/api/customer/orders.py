@@ -6,6 +6,7 @@ from ...models import models
 from ...schemas import schemas
 from ..auth import get_current_user
 from ...core.websocket_manager import manager
+from datetime import datetime, timezone # Use modern timezone-aware dates
 
 router = APIRouter()
 
@@ -63,6 +64,7 @@ async def place_order(
         new_order = models.Order(
             user_id=current_user.id,
             address_id=address.id,
+            order_date=datetime.now(timezone.utc),
 
             customer_name=address.full_name,
             customer_email=current_user.email,
