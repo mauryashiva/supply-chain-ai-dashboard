@@ -28,6 +28,7 @@ export const AdminManagement = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<any>(null);
 
+  // 🛠️ FETCH: Always pull fresh data to ensure we see the latest roles
   const fetchAuthorizedAdmins = async () => {
     const { data, error } = await supabase
       .from("authorized_admins")
@@ -56,30 +57,46 @@ export const AdminManagement = () => {
     setLoading(false);
   };
 
+  // 🛠️ UPDATE: The Sync Trigger will automatically update 'admin_profiles'
   const handleUpdateAccess = async () => {
     if (!selectedAdmin) return;
+    setLoading(true);
+
     const { error } = await supabase
       .from("authorized_admins")
       .update({ access_level: selectedAdmin.access_level })
       .eq("email", selectedAdmin.email);
 
-    if (!error) {
-      fetchAuthorizedAdmins();
+    if (error) {
+      alert("Failed to update access level.");
+    } else {
+      // Small delay to allow the DB Trigger to finish syncing
+      setTimeout(() => fetchAuthorizedAdmins(), 500);
       setIsEditModalOpen(false);
     }
+    setLoading(false);
   };
 
+  // 🛠️ DELETE: The Sync Trigger will set their profile to 'none' automatically
   const removeAuthorization = async () => {
     if (!selectedAdmin) return;
+    setLoading(true);
+
     const { error } = await supabase
       .from("authorized_admins")
       .delete()
       .eq("email", selectedAdmin.email);
 
-    if (!error) {
-      fetchAuthorizedAdmins();
+    if (error) {
+      alert("Failed to revoke permissions.");
+    } else {
+      // Filter local state immediately for a fast UI feel
+      setAuthorizedList((prev) =>
+        prev.filter((a) => a.email !== selectedAdmin.email),
+      );
       setIsDeleteModalOpen(false);
     }
+    setLoading(false);
   };
 
   const filteredAdmins = authorizedList.filter((admin) =>
@@ -115,9 +132,10 @@ export const AdminManagement = () => {
             </button>
             <button
               onClick={removeAuthorization}
-              className="flex-1 h-11 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 text-sm transition-all shadow-sm"
+              disabled={loading}
+              className="flex-1 h-11 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 text-sm transition-all shadow-sm disabled:opacity-50"
             >
-              Confirm Revocation
+              {loading ? "Revoking..." : "Confirm Revocation"}
             </button>
           </div>
         </div>
@@ -159,9 +177,10 @@ export const AdminManagement = () => {
           </div>
           <button
             onClick={handleUpdateAccess}
-            className="w-full h-11 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold rounded-lg hover:opacity-90 transition-all text-sm uppercase tracking-widest"
+            disabled={loading}
+            className="w-full h-11 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-bold rounded-lg hover:opacity-90 transition-all text-sm uppercase tracking-widest disabled:opacity-50"
           >
-            Update Access
+            {loading ? "Updating..." : "Update Access"}
           </button>
         </div>
       </ModalLayout>
@@ -232,7 +251,7 @@ export const AdminManagement = () => {
                     className="w-full h-11 px-3 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-sm font-medium outline-none focus:border-cyan-500"
                   >
                     <option value="view_only">Read-Only Observer</option>
-                    <option value="full_access">Full System Admin</option>
+                    <option value="full_access">Full Access (Admin)</option>
                   </select>
                 </div>
 

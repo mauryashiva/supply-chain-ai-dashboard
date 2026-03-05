@@ -23,21 +23,33 @@ export const Login = () => {
 
       if (loginError) {
         setError(loginError.message);
+        setLoading(false); // Fix: Ensure loading stops on error
         return;
       }
 
+      // 🔍 Updated Logic: Check for ANY valid admin access level
       const { data: profile, error: profileError } = await supabase
         .from("admin_profiles")
         .select("role, access_level")
         .eq("id", authData.user.id)
         .maybeSingle();
 
-      if (profileError || !profile) {
-        setError("Access Denied: Unauthorized administrative account.");
+      // We now allow 'full_access' OR 'view_only'
+      const hasValidAccess =
+        profile &&
+        (profile.access_level === "full_access" ||
+          profile.access_level === "view_only");
+
+      if (profileError || !hasValidAccess) {
+        setError(
+          "Access Denied: You do not have permission to enter the Admin Portal.",
+        );
         await supabase.auth.signOut();
+        setLoading(false);
         return;
       }
 
+      // If they passed the check, let them in
       navigate("/", { replace: true });
       window.location.reload();
     } catch (err) {
