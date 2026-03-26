@@ -41,13 +41,9 @@ app = FastAPI(
 # This is used by external pinger services 
 # to prevent Render from sleeping.
 # ================================
-@app.get("/ping")
+@app.api_route("/ping", methods=["GET", "HEAD"])
 async def ping():
-    """
-    Minimal weight endpoint to keep the instance warm.
-    """
-    return {"status": "alive", "msg": "Instance is warm"}
-
+    return {"status": "alive" , "msg": "Instance is warm"}
 
 # ================================
 # CORS Configuration
