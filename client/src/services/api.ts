@@ -1,5 +1,8 @@
 import axios from "axios";
-// Import all necessary types from the types definition file
+
+// ================================
+// Types Import
+// ================================
 import type {
   AnalyticsSummary,
   Order,
@@ -18,18 +21,30 @@ import type {
   DemandForecast,
 } from "@/types";
 
-// Define the base URL for the API, falling back to localhost
+// ================================
+// Base URL
+// ================================
 const API_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-// Create a pre-configured axios instance for all API calls
+// ================================
+// Axios Instance
+// ================================
 const apiClient = axios.create({
   baseURL: `${API_URL}/api`,
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 10000, // 10s timeout
 });
 
-// Attach JWT token for protected admin and bulk endpoints.
+// ================================
+// Simple In-Memory Cache
+// ================================
+const cache = new Map<string, any>();
+
+// ================================
+// Request Interceptor (Attach Token)
+// ================================
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token && config.headers) {
@@ -38,20 +53,52 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// ================================
+// Response Interceptor (Retry + Auth)
+// ================================
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const config = error.config;
+
+    // Retry once (for cold start)
+    if (!config._retry) {
+      config._retry = true;
+
+      await new Promise((res) => setTimeout(res, 1500));
+      return apiClient(config);
+    }
+
+    // Handle Unauthorized
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+
       if (window.location.pathname !== "/auth") {
         window.location.href = "/auth";
       }
     }
+
     return Promise.reject(error);
   },
 );
 
+// ================================
+// Helper: Cached GET
+// ================================
+const cachedGet = async <T>(key: string, url: string, params?: any) => {
+  if (cache.has(key)) {
+    return cache.get(key);
+  }
+
+  const res = await apiClient.get<T>(url, { params });
+  cache.set(key, res);
+  return res;
+};
+
+// ================================
+// Auth APIs
+// ================================
 export const loginUser = (formData: FormData | URLSearchParams) =>
   apiClient.post("/auth/login", formData, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -60,175 +107,158 @@ export const loginUser = (formData: FormData | URLSearchParams) =>
 export const signupUser = (data: { email: string; password: string }) =>
   apiClient.post("/auth/signup", data);
 
-// Type definition for daily revenue data points
-export interface RevenueDataPoint {
-  date: string; // 'YYYY-MM-DD'
-  revenue: number;
-}
-
-// Type definition for monthly revenue data points
-export interface MonthlyRevenueDataPoint {
-  month: string; // e.g., "Jan", "Feb"
-  revenue: number;
-}
-
-// -- Data Fetching Functions --
-
-// Fetches the main analytics summary for the dashboard
+// ================================
+// Analytics APIs
+// ================================
 export const getDashboardSummary = () =>
-  apiClient.get<AnalyticsSummary>("/analytics/summary");
+  cachedGet<AnalyticsSummary>("dashboard", "/analytics/summary");
 
-// Fetches the list of all products
-export const getProducts = () =>
-  apiClient.get<Product[]>("/inventory/products");
-
-// Fetches the list of all orders
-export const getOrders = () => apiClient.get<Order[]>("/orders/");
-
-// Fetches the list of all vehicles
-export const getVehicles = () =>
-  apiClient.get<Vehicle[]>("/logistics/vehicles");
-
-// Fetches the list of all users
-export const getUsers = () => apiClient.get<User[]>("/users/");
-
-/**
- * Fetches a list of products that are low in stock.
- */
 export const getLowStockProducts = () =>
-  apiClient.get<{ data: LowStockProduct[] }>("/analytics/low-stock-products");
+  cachedGet<{ data: LowStockProduct[] }>(
+    "low-stock",
+    "/analytics/low-stock-products",
+  );
 
-/**
- * Fetches 30-day demand forecast.
- * @param productId (Optional) If provided, forecasts for this specific product ID.
- */
-export const getDemandForecast = (productId?: number) =>
-  apiClient.get<DemandForecast>("/forecast", {
-    params: { product_id: productId }, // Pass product_id as a query param if it exists
+export const getRevenueOverTime = (days: number = 30) =>
+  apiClient.get("/analytics/revenue-over-time", { params: { days } });
+
+export const getMonthlyRevenue = (months: number = 6) =>
+  apiClient.get("/analytics/monthly-revenue", {
+    params: { months },
   });
 
-/**
- * Fetches top moving products for tomorrow.
- */
+// ================================
+// Inventory APIs
+// ================================
+export const getProducts = () =>
+  cachedGet<Product[]>("products", "/inventory/products");
+
+export const createProduct = (data: ProductCreate) =>
+  apiClient.post<Product>("/inventory/products", data);
+
+export const updateProduct = (id: number, data: ProductUpdate) =>
+  apiClient.put<Product>(`/inventory/products/${id}`, data);
+
+export const deleteProduct = (id: number) =>
+  apiClient.delete(`/inventory/products/${id}`);
+
+// ================================
+// Orders APIs
+// ================================
+export const getOrders = () => cachedGet<Order[]>("orders", "/orders/");
+
+export const createOrder = (data: OrderCreate) =>
+  apiClient.post<Order>("/orders/", data);
+
+export const updateOrder = (id: number, data: OrderUpdate) =>
+  apiClient.put<Order>(`/orders/${id}`, data);
+
+export const deleteOrder = (id: number) => apiClient.delete(`/orders/${id}`);
+
+// ================================
+// Users APIs
+// ================================
+export const getUsers = () => cachedGet<User[]>("users", "/users/");
+
+export const createUser = (data: UserCreate) =>
+  apiClient.post<User>("/users/", data);
+
+export const updateUser = (id: number, data: UserUpdate) =>
+  apiClient.put<User>(`/users/${id}`, data);
+
+export const deleteUser = (id: number) => apiClient.delete(`/users/${id}`);
+
+// ================================
+// Logistics APIs
+// ================================
+export const getVehicles = () =>
+  cachedGet<Vehicle[]>("vehicles", "/logistics/vehicles");
+
+// ================================
+// Forecast APIs
+// ================================
+export const getDemandForecast = (productId?: number) =>
+  apiClient.get<DemandForecast>("/forecast", {
+    params: { product_id: productId },
+  });
 
 export const getTopMovers = () =>
   apiClient.get("/forecast/top-movers-tomorrow");
-/**
- * Fetches daily revenue for a specified number of past days.
- * @param days Number of past days (default: 30).
- */
-export const getRevenueOverTime = (days: number = 30) =>
-  apiClient.get<{ data: RevenueDataPoint[] }>("/analytics/revenue-over-time", {
-    params: { days },
-  });
 
-/**
- * Fetches revenue data grouped by month for the specified number of months.
- * @param months Number of past months to fetch data for (default: 6).
- */
-export const getMonthlyRevenue = (months: number = 6) =>
-  apiClient.get<{ data: MonthlyRevenueDataPoint[] }>(
-    "/analytics/monthly-revenue",
-    {
-      params: { months }, // Pass 'months' as a query parameter
-    },
-  );
-
-// -- Data Creation Functions --
-export const createUser = (userData: UserCreate) =>
-  apiClient.post<User>("/users/", userData);
-export const createProduct = (productData: ProductCreate) =>
-  apiClient.post<Product>("/inventory/products", productData);
-export const createOrder = (orderData: OrderCreate) =>
-  apiClient.post<Order>("/orders/", orderData);
-
-// -- Data Modification Functions --
-export const updateProduct = (productId: number, productData: ProductUpdate) =>
-  apiClient.put<Product>(`/inventory/products/${productId}`, productData);
-export const deleteProduct = (productId: number) =>
-  apiClient.delete(`/inventory/products/${productId}`);
-export const updateUser = (userId: number, userData: UserUpdate) =>
-  apiClient.put<User>(`/users/${userId}`, userData);
-export const deleteUser = (userId: number) =>
-  apiClient.delete(`/users/${userId}`);
-export const updateOrder = (orderId: number, orderData: OrderUpdate) =>
-  apiClient.put<Order>(`/orders/${orderId}`, orderData);
-export const deleteOrder = (orderId: number) =>
-  apiClient.delete(`/orders/${orderId}`);
-
-// -- AI Helper Functions --
-/**
- * Calls the AI endpoint to generate a product description.
- */
+// ================================
+// AI APIs
+// ================================
 export const generateDescription = (productName: string, category?: string) =>
-  apiClient.post<{ description: string }>("/ai/generate-description", {
+  apiClient.post("/ai/generate-description", {
     product_name: productName,
-    category: category,
+    category,
   });
 
-// -- App Settings Functions --
-export const getSettings = () => apiClient.get<AppSetting[]>("/settings/");
-export const updateSettings = (settingsData: AppSettingsUpdate) =>
-  apiClient.put<AppSetting[]>("/settings/", settingsData);
+// ================================
+// Settings APIs
+// ================================
+export const getSettings = () =>
+  cachedGet<AppSetting[]>("settings", "/settings/");
 
-// --- CSV UPLOAD FUNCTIONS ---
+export const updateSettings = (data: AppSettingsUpdate) =>
+  apiClient.put<AppSetting[]>("/settings/", data);
 
-/**
- * Uploads an inventory CSV file.
- * Expects 'multipart/form-data'.
- */
+// ================================
+// CSV Upload APIs
+// ================================
 export const uploadInventoryCSV = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
-  return apiClient.post<{
-    message: string;
-    products_added: number;
-    products_updated: number;
-    errors: string[];
-    error_report_id?: string; // ID to download an error report if any
-  }>("/bulk/inventory/upload-csv", formData, {
+
+  return apiClient.post("/bulk/inventory/upload-csv", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 };
 
-/**
- * Uploads an orders CSV file.
- * Expects 'multipart/form-data'.
- */
 export const uploadOrdersCSV = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
-  return apiClient.post<{
-    message: string;
-    orders_created: number;
-    errors: string[];
-    error_report_id?: string; // ID to download an error report if any
-  }>("/bulk/orders/upload-csv", formData, {
+
+  return apiClient.post("/bulk/orders/upload-csv", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 };
 
-// --- CSV EXPORT FUNCTIONS ---
-// These endpoints return a file Blob.
+// ================================
+// CSV Export APIs
+// ================================
 export const exportInventoryCSV = () =>
-  apiClient.get("/bulk/inventory/export-csv", { responseType: "blob" });
-export const exportOrdersCSV = () =>
-  apiClient.get("/bulk/orders/export-csv", { responseType: "blob" });
-
-// --- CSV TEMPLATE DOWNLOAD FUNCTIONS ---
-// These endpoints return a file Blob.
-export const downloadInventoryTemplate = () =>
-  apiClient.get("/bulk/inventory/template", { responseType: "blob" });
-export const downloadOrderTemplate = () =>
-  apiClient.get("/bulk/orders/template", { responseType: "blob" });
-
-// --- ERROR FILE DOWNLOAD FUNCTIONS ---
-// These endpoints return a file Blob using a specific report ID.
-export const downloadInventoryErrorFile = (reportId: string) =>
-  apiClient.get(`/bulk/inventory/download-errors/${reportId}`, {
+  apiClient.get("/bulk/inventory/export-csv", {
     responseType: "blob",
   });
-export const downloadOrderErrorFile = (reportId: string) =>
-  apiClient.get(`/bulk/orders/download-errors/${reportId}`, {
+
+export const exportOrdersCSV = () =>
+  apiClient.get("/bulk/orders/export-csv", {
+    responseType: "blob",
+  });
+
+// ================================
+// CSV Template APIs
+// ================================
+export const downloadInventoryTemplate = () =>
+  apiClient.get("/bulk/inventory/template", {
+    responseType: "blob",
+  });
+
+export const downloadOrderTemplate = () =>
+  apiClient.get("/bulk/orders/template", {
+    responseType: "blob",
+  });
+
+// ================================
+// Error File Download APIs
+// ================================
+export const downloadInventoryErrorFile = (id: string) =>
+  apiClient.get(`/bulk/inventory/download-errors/${id}`, {
+    responseType: "blob",
+  });
+
+export const downloadOrderErrorFile = (id: string) =>
+  apiClient.get(`/bulk/orders/download-errors/${id}`, {
     responseType: "blob",
   });

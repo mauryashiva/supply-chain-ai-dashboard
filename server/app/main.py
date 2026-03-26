@@ -36,6 +36,18 @@ app = FastAPI(
     title="Supply Chain AI Dashboard API"
 )
 
+# ================================
+# 🚀 SPEED OPTIMIZATION: Keep-Alive Route
+# This is used by external pinger services 
+# to prevent Render from sleeping.
+# ================================
+@app.get("/ping")
+async def ping():
+    """
+    Minimal weight endpoint to keep the instance warm.
+    """
+    return {"status": "alive", "msg": "Instance is warm"}
+
 
 # ================================
 # CORS Configuration
