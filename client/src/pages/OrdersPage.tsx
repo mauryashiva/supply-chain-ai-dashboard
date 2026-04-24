@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { getOrders, getProducts, deleteOrder } from "@/services/api";
+// 🛠️ Fixed: Updated to use modularized services
+import { orderService, inventoryService } from "@/services/api";
 import { Search, PlusCircle } from "lucide-react";
+// 🛠️ Fixed: Used type-only imports for standard compliance
 import type { Order, Product } from "@/types";
 import { useRealTimeSync } from "@/hooks/useRealTimeSync";
 
+// Components
 import { AddOrderModal } from "@/components/orders/AddOrderModal";
 import { EditOrderModal } from "@/components/orders/EditOrderModal";
 import { OrderDetailsModal } from "@/components/orders/OrderDetailsModal";
@@ -11,6 +14,7 @@ import { ConfirmationModal } from "@/components/orders/ConfirmationModal";
 import { OrderTable } from "@/components/orders/OrderTable";
 
 const OrdersPage: React.FC = () => {
+  // --- 1. STATE MANAGEMENT ---
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,15 +29,18 @@ const OrdersPage: React.FC = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // --- 2. DATA FETCHING ---
   const fetchOrders = async () => {
     try {
-      const res = await getOrders();
+      // 🛠️ Fixed: Use orderService
+      const res = await orderService.getOrders();
       setOrders(res.data || []);
     } catch (err) {
-      console.error(err);
+      console.error("Failed to sync orders:", err);
     }
   };
 
+  // Real-time synchronization hook
   useRealTimeSync(fetchOrders);
 
   useEffect(() => {
@@ -41,14 +48,16 @@ const OrdersPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
+        // 🛠️ Fixed: Use modular services in parallel
         const [ordersRes, productsRes] = await Promise.all([
-          getOrders(),
-          getProducts(),
+          orderService.getOrders(),
+          inventoryService.getProducts(),
         ]);
         setOrders(ordersRes.data || []);
         setProducts(productsRes.data || []);
-      } catch {
-        setError("Failed to load orders.");
+      } catch (err) {
+        console.error("Fetch data error:", err);
+        setError("Failed to load dashboard data. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -56,6 +65,7 @@ const OrdersPage: React.FC = () => {
     fetchData();
   }, []);
 
+  // --- 3. SEARCH & FILTER LOGIC ---
   const filteredOrders = orders.filter((o) => {
     const search = searchTerm.toLowerCase();
     return (
@@ -65,6 +75,7 @@ const OrdersPage: React.FC = () => {
     );
   });
 
+  // --- 4. ACTION HANDLERS ---
   const handleOrderAdded = (newOrder: Order) =>
     setOrders([newOrder, ...orders]);
 
@@ -75,9 +86,12 @@ const OrdersPage: React.FC = () => {
     if (!orderToDelete) return;
     setIsDeleting(true);
     try {
-      await deleteOrder(orderToDelete.id);
+      // 🛠️ Fixed: Use orderService
+      await orderService.deleteOrder(orderToDelete.id);
       setOrders(orders.filter((o) => o.id !== orderToDelete.id));
       setIsConfirmModalOpen(false);
+    } catch (err) {
+      console.error("Delete order error:", err);
     } finally {
       setIsDeleting(false);
     }
@@ -112,33 +126,35 @@ const OrdersPage: React.FC = () => {
         onClose={() => setIsConfirmModalOpen(false)}
         onConfirm={handleConfirmDelete}
         title="Confirm Deletion"
-        message={`Delete Order #${orderToDelete?.id}?`}
+        message={`Are you sure you want to delete Order #${orderToDelete?.id}? This action cannot be undone.`}
         loading={isDeleting}
       />
 
-      {/* PAGE */}
+      {/* PAGE UI */}
       <div
         className="
           rounded-xl shadow-sm p-6 border
           bg-white border-gray-200
           dark:bg-zinc-900 dark:border-zinc-800
           text-gray-900 dark:text-white
-          transition-colors
+          transition-colors duration-300
         "
       >
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Order Management</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Order Management
+            </h1>
             <p className="text-sm font-bold text-gray-600 dark:text-zinc-400">
-              Track and manage customer orders
+              Track and manage customer orders and fulfillment status
             </p>
           </div>
 
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="
-              flex items-center gap-2 px-5 py-2 rounded-lg shadow-sm font-bold transition
+              w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg shadow-sm font-bold transition-all active:scale-95
               bg-blue-600 hover:bg-blue-700 text-white
               dark:bg-blue-500 dark:hover:bg-blue-600
             "
@@ -148,27 +164,27 @@ const OrdersPage: React.FC = () => {
           </button>
         </div>
 
-        {/* SEARCH */}
+        {/* SEARCH BAR */}
         <div className="mb-5">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 dark:text-zinc-500" />
 
             <input
               type="text"
-              placeholder="Search order id, name, email..."
+              placeholder="Search by ID, customer name, or email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="
-                w-full pl-10 pr-4 py-2 rounded-lg border font-bold outline-none transition
+                w-full pl-10 pr-4 py-2.5 rounded-lg border font-bold outline-none transition-all
                 bg-gray-50 border-gray-200 text-gray-900
-                focus:ring-2 focus:ring-blue-500
+                focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
                 dark:bg-zinc-800 dark:border-zinc-700 dark:text-white
               "
             />
           </div>
         </div>
 
-        {/* TABLE */}
+        {/* TABLE SECTION */}
         <OrderTable
           loading={loading}
           error={error}

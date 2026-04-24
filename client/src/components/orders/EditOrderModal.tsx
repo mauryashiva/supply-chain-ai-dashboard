@@ -1,6 +1,8 @@
 import React, { useEffect, useState, type FormEvent } from "react";
+// 🛠️ Updated: Using type-only imports for cleaner architecture
 import type { Order, OrderUpdate } from "@/types";
-import { updateOrder } from "@/services/api";
+// 🛠️ Updated: Centralized orderService instead of standalone updateOrder
+import { orderService } from "@/services/api";
 import { ModalLayout } from "@/layouts/ModalLayout";
 
 interface EditOrderModalProps {
@@ -50,7 +52,10 @@ export const EditOrderModal: React.FC<EditOrderModalProps> = ({
         ...formData,
         vehicle_id: Number(formData.vehicle_id) || undefined,
       };
-      const response = await updateOrder(order.id, payload);
+
+      // 🛠️ Updated: Changed standalone updateOrder() to orderService.updateOrder()
+      const response = await orderService.updateOrder(order.id, payload);
+
       onOrderUpdated(response.data);
       onClose();
     } catch (err: any) {

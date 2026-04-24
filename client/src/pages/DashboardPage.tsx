@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from "react";
-import {
-  getDashboardSummary,
-  getMonthlyRevenue,
-  type MonthlyRevenueDataPoint,
-} from "@/services/api";
+// 🛠️ Fixed: Updated to use centralized analyticsService
+import { analyticsService } from "@/services/api";
 
 import {
   BarChart,
@@ -23,6 +20,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+// 🛠️ Fixed: Import types from centralized types folder
 import type { AnalyticsSummary, KpiCard } from "@/types";
 
 interface KPICardProps {
@@ -82,9 +80,8 @@ const DashboardPage: React.FC = () => {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
-  const [monthlyRevenueData, setMonthlyRevenueData] = useState<
-    MonthlyRevenueDataPoint[]
-  >([]);
+  // 🛠️ Fixed: Updated state type to match modular types
+  const [monthlyRevenueData, setMonthlyRevenueData] = useState<any[]>([]);
   const [monthlyRevenueLoading, setMonthlyRevenueLoading] = useState(true);
   const [monthlyRevenueError, setMonthlyRevenueError] = useState<string | null>(
     null,
@@ -95,7 +92,8 @@ const DashboardPage: React.FC = () => {
       setSummaryLoading(true);
       setSummaryError(null);
       try {
-        const response = await getDashboardSummary();
+        // 🛠️ Fixed: Changed to analyticsService.getSummary()
+        const response = await analyticsService.getSummary();
         setSummaryData(response.data);
       } catch (error) {
         console.error(error);
@@ -112,7 +110,8 @@ const DashboardPage: React.FC = () => {
       setMonthlyRevenueLoading(true);
       setMonthlyRevenueError(null);
       try {
-        const response = await getMonthlyRevenue(6);
+        // 🛠️ Fixed: Changed to analyticsService.getMonthlyRevenue()
+        const response = await analyticsService.getMonthlyRevenue(6);
         setMonthlyRevenueData(response.data.data);
       } catch (error) {
         console.error(error);
@@ -125,12 +124,12 @@ const DashboardPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="flex flex-col gap-6 bg-gray-50 dark:bg-zinc-950 min-h-screen p-6">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+    <div className="flex flex-col gap-6 bg-gray-50 dark:bg-zinc-950 min-h-screen p-6 transition-colors duration-300">
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
         Dashboard Overview
       </h1>
 
-      {/* KPI Cards */}
+      {/* KPI Cards Section */}
       {summaryLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
@@ -144,9 +143,9 @@ const DashboardPage: React.FC = () => {
           ))}
         </div>
       ) : summaryError ? (
-        <p className="text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
+        <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl text-red-600 dark:text-red-400 font-bold">
           {summaryError}
-        </p>
+        </div>
       ) : summaryData?.kpi_cards ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {summaryData.kpi_cards.map((card: KpiCard) => (
@@ -165,19 +164,19 @@ const DashboardPage: React.FC = () => {
         </p>
       )}
 
-      {/* Chart */}
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+      {/* Monthly Revenue Chart Section */}
+      <div className="bg-white dark:bg-zinc-900 rounded-[24px] shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
           Monthly Revenue (Last 6 Months)
         </h2>
 
-        <div style={{ width: "100%", height: 300 }}>
+        <div style={{ width: "100%", height: 350 }}>
           {monthlyRevenueLoading ? (
-            <div className="h-full flex items-center justify-center text-gray-500 dark:text-zinc-400 font-bold">
-              Loading chart...
+            <div className="h-full flex items-center justify-center text-gray-500 dark:text-zinc-400 font-bold animate-pulse">
+              Preparing data visualization...
             </div>
           ) : monthlyRevenueError ? (
-            <div className="h-full flex items-center justify-center text-red-600 dark:text-red-400 font-bold">
+            <div className="h-full flex items-center justify-center text-red-600 dark:text-red-400 font-bold bg-red-50/50 dark:bg-red-950/20 rounded-xl">
               {monthlyRevenueError}
             </div>
           ) : monthlyRevenueData.length > 0 ? (
@@ -187,6 +186,7 @@ const DashboardPage: React.FC = () => {
                   stroke="#e5e7eb"
                   strokeDasharray="3 3"
                   vertical={false}
+                  opacity={0.5}
                 />
 
                 <XAxis
@@ -195,50 +195,52 @@ const DashboardPage: React.FC = () => {
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fontWeight: 700 }}
+                  tick={{ fontWeight: 700, fill: "currentColor" }}
+                  dy={10}
                 />
 
                 <YAxis
                   stroke="#6b7280"
-                  fontSize={12}
+                  fontSize={11}
                   tickLine={false}
                   axisLine={false}
                   width={70}
-                  tick={{ fontWeight: 700 }}
+                  tick={{ fontWeight: 700, fill: "currentColor" }}
                   tickFormatter={(value) => {
                     if (value >= 10000000)
                       return `₹${(value / 10000000).toFixed(1)}Cr`;
                     if (value >= 100000)
                       return `₹${(value / 100000).toFixed(1)}L`;
-                    if (value >= 1000) return `₹${(value / 1000).toFixed(1)}k`;
+                    if (value >= 1000) return `₹${(value / 1000).toFixed(0)}k`;
                     return `₹${value}`;
                   }}
                 />
 
                 <Tooltip
-                  cursor={{ fill: "#f3f4f6" }}
+                  cursor={{ fill: "#f3f4f6", opacity: 0.4 }}
                   contentStyle={{
-                    backgroundColor: "#ffffff",
+                    backgroundColor: "rgba(255, 255, 255, 0.95)",
                     border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
+                    borderRadius: "12px",
+                    boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
                     fontWeight: "700",
                   }}
-                  labelStyle={{ fontWeight: 700 }}
-                  itemStyle={{ fontWeight: 700, color: "#2563eb" }}
+                  itemStyle={{ fontWeight: 800, color: "#2563eb" }}
                   formatter={(value: number) => `₹${value.toLocaleString()}`}
                 />
 
                 <Bar
                   dataKey="revenue"
-                  fill="#2563eb"
+                  fill="#3b82f6"
                   radius={[6, 6, 0, 0]}
-                  barSize={32}
+                  barSize={40}
+                  animationDuration={1500}
                 />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-500 dark:text-zinc-400 font-bold">
-              No revenue data available.
+            <div className="h-full flex items-center justify-center text-gray-500 dark:text-zinc-400 font-bold bg-gray-100 dark:bg-zinc-800 rounded-xl border-2 border-dashed">
+              No revenue transactions recorded.
             </div>
           )}
         </div>

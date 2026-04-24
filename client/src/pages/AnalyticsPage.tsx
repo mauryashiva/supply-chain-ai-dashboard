@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from "react";
-import {
-  getDashboardSummary,
-  getRevenueOverTime,
-  type RevenueDataPoint,
-} from "@/services/api";
-import type { AnalyticsSummary } from "@/types";
+// 🛠️ Fixed: Updated to use centralized analyticsService
+import { analyticsService } from "@/services/api";
+// 🛠️ Fixed: Updated type imports to modular standard
+import type { AnalyticsSummary, RevenueDataPoint } from "@/types";
 
 import { Download, AlertTriangle, TrendingUp, ListChecks } from "lucide-react";
 
@@ -35,8 +33,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex justify-center items-center p-4">
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg p-6 w-full max-w-sm border border-gray-200 dark:border-zinc-800 text-center">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-xl p-6 w-full max-w-sm border border-gray-200 dark:border-zinc-800 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 mb-4">
           <AlertTriangle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
         </div>
@@ -49,19 +47,19 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           {message}
         </p>
 
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="w-full bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-900 dark:text-white font-semibold py-2 rounded-lg transition"
+            className="w-full bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-gray-900 dark:text-white font-bold py-2.5 rounded-xl transition-all"
           >
             Cancel
           </button>
 
           <button
             onClick={onConfirm}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95"
           >
-            Download Again
+            Download
           </button>
         </div>
       </div>
@@ -84,12 +82,16 @@ const AnalyticsPage: React.FC = () => {
   const [hasDownloaded, setHasDownloaded] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
+  // 1. Fetch Summary Data
   useEffect(() => {
     const fetchAnalytics = async () => {
       setSummaryLoading(true);
       try {
-        const response = await getDashboardSummary();
+        // 🛠️ Fixed: Using centralized analyticsService
+        const response = await analyticsService.getSummary();
         setAnalyticsData(response.data);
+      } catch (error) {
+        console.error("Summary fetch error:", error);
       } finally {
         setSummaryLoading(false);
       }
@@ -97,17 +99,20 @@ const AnalyticsPage: React.FC = () => {
     fetchAnalytics();
   }, []);
 
+  // 2. Fetch Revenue Time-Series Data
   useEffect(() => {
     const fetchRevenue = async () => {
       setRevenueLoading(true);
       setRevenueError(null);
       try {
-        const response = await getRevenueOverTime(30);
+        // 🛠️ Fixed: Using centralized analyticsService
+        const response = await analyticsService.getRevenue(30);
         const sorted = response.data.data.sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
         );
         setRevenueData(sorted);
-      } catch {
+      } catch (err) {
+        console.error("Revenue fetch error:", err);
         setRevenueError("Could not load revenue chart data.");
       } finally {
         setRevenueLoading(false);
@@ -135,7 +140,7 @@ const AnalyticsPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `analytics-report-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
 
@@ -156,18 +161,18 @@ const AnalyticsPage: React.FC = () => {
         isOpen={isConfirmModalOpen}
         onClose={() => setIsConfirmModalOpen(false)}
         onConfirm={performDownload}
-        title="Confirm Download"
-        message="You already downloaded this report. Download again?"
+        title="Duplicate Download"
+        message="You have already downloaded a copy of this report. Would you like to download it again?"
       />
 
-      <div className="flex flex-col gap-6">
-        {/* Header */}
+      <div className="flex flex-col gap-6 font-sans">
+        {/* Header Section */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
               Analytics & Reports
             </h1>
-            <p className="text-gray-600 dark:text-zinc-400 font-semibold">
+            <p className="text-sm font-bold text-gray-500 dark:text-zinc-400">
               Deep insights into your supply chain performance
             </p>
           </div>
@@ -175,84 +180,85 @@ const AnalyticsPage: React.FC = () => {
           <button
             onClick={handleDownloadReport}
             disabled={!analyticsData || summaryLoading}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-lg shadow-sm disabled:opacity-50"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md shadow-blue-600/10 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
           >
-            <Download size={16} />
-            Download Summary
+            <Download size={18} />
+            Export Summary
           </button>
         </div>
 
-        {/* Loading */}
+        {/* Content States */}
         {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <svg
-              className="animate-spin h-10 w-10 text-blue-600"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-                fill="none"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5 0 0 5 0 12h4z"
-              />
-            </svg>
+          <div className="flex flex-col justify-center items-center h-80 gap-4">
+            <div className="relative">
+              <div className="h-12 w-12 rounded-full border-4 border-blue-100 dark:border-zinc-800 border-t-blue-600 animate-spin"></div>
+            </div>
+            <p className="text-gray-500 dark:text-zinc-400 font-bold animate-pulse">
+              Aggregating Data...
+            </p>
           </div>
         ) : !analyticsData ? (
-          <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-8 text-center border border-gray-200 dark:border-zinc-800">
-            <AlertTriangle className="mx-auto h-12 w-12 text-red-500" />
-            <p className="mt-4 text-lg font-bold text-red-600 dark:text-red-400">
-              Could not load analytics data
+          <div className="bg-white dark:bg-zinc-900 rounded-[2rem] shadow-sm p-12 text-center border border-gray-200 dark:border-zinc-800">
+            <AlertTriangle className="mx-auto h-16 w-16 text-amber-500 mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              Data Unavailable
+            </h2>
+            <p className="mt-2 text-gray-500 dark:text-zinc-400 max-w-xs mx-auto">
+              We encountered an issue while fetching your analytics. Please
+              refresh the page.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {/* KPI Component */}
             <KpiCardGrid kpi_cards={analyticsData.kpi_cards} />
 
+            {/* Drill-down Lists */}
             <LowStockProductsList />
 
-            {/* Top Products */}
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            {/* Top Products Visualization */}
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
                 Top Selling Products
               </h2>
               <TopProductsChart data={analyticsData.top_selling_products} />
             </div>
 
-            {/* Delivery Pie */}
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            {/* Delivery Performance Visualization */}
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
                 Delivery Status
               </h2>
               <DeliveryPieChart data={analyticsData.delivery_status} />
             </div>
 
-            {/* Order Status */}
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <ListChecks size={20} className="text-amber-500" />
-                Order Status Breakdown
+            {/* Order Flow Breakdown */}
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <ListChecks size={22} className="text-amber-500" />
+                Status Distribution
               </h2>
               <OrderStatusChart data={analyticsData.order_status_breakdown} />
             </div>
 
-            {/* Revenue */}
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-zinc-800 md:col-span-2 xl:col-span-3">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <TrendingUp size={20} className="text-blue-600" />
-                Revenue Over Last 30 Days
+            {/* Large Revenue Chart */}
+            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-sm p-8 border border-gray-200 dark:border-zinc-800 md:col-span-2 xl:col-span-3">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-8 flex items-center gap-3">
+                <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                  <TrendingUp
+                    size={20}
+                    className="text-blue-600 dark:text-blue-400"
+                  />
+                </div>
+                Revenue Performance (30 Days)
               </h2>
 
               {revenueError ? (
-                <div className="text-red-600 dark:text-red-400 font-semibold text-center">
-                  {revenueError}
+                <div className="py-20 text-center">
+                  <AlertTriangle className="mx-auto h-10 w-10 text-red-400 mb-2" />
+                  <p className="text-red-600 dark:text-red-400 font-bold">
+                    {revenueError}
+                  </p>
                 </div>
               ) : (
                 <RevenueChart data={revenueData} />

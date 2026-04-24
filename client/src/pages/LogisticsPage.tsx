@@ -4,8 +4,10 @@ import type { MapRef, ViewStateChangeEvent } from "react-map-gl";
 import useSupercluster from "use-supercluster";
 import { Truck } from "lucide-react";
 
-import { getVehicles } from "@/services/api.ts";
+// 🛠️ Fixed: Updated to use centralized logisticsService
+import { logisticsService } from "@/services/api";
 import { cn } from "@/lib/utils";
+// 🛠️ Fixed: Updated type imports to be type-only for standard compliance
 import type { Vehicle, VehicleStatus } from "@/types";
 
 // Components
@@ -51,10 +53,14 @@ const LogisticsPage: React.FC = () => {
   // --- 2. DATA FETCHING ---
   const fetchVehicles = async () => {
     try {
-      const response = await getVehicles();
+      // 🛠️ Fixed: Changed getVehicles() to logisticsService.getVehicles()
+      const response = await logisticsService.getVehicles();
       setVehicles(response.data);
-      if (response.data.length > 0 && !selectedVehicle)
+
+      // Select the first vehicle if none is selected yet
+      if (response.data.length > 0 && !selectedVehicle) {
         setSelectedVehicle(response.data[0]);
+      }
     } catch (error) {
       console.error("Failed to fetch vehicles:", error);
     }
@@ -62,7 +68,7 @@ const LogisticsPage: React.FC = () => {
 
   useEffect(() => {
     fetchVehicles();
-    const interval = setInterval(fetchVehicles, 30000);
+    const interval = setInterval(fetchVehicles, 30000); // Auto-refresh every 30s
     return () => clearInterval(interval);
   }, []);
 
@@ -86,7 +92,7 @@ const LogisticsPage: React.FC = () => {
       );
   }, [vehicles, searchTerm, statusFilter]);
 
-  // Clustering logic
+  // Clustering logic for Mapbox
   const points = useMemo(
     () =>
       filteredVehicles.map((v) => ({
@@ -142,14 +148,14 @@ const LogisticsPage: React.FC = () => {
                     "match",
                     ["get", "congestion"],
                     "low",
-                    "#22c55e", // Green
+                    "#22c55e",
                     "moderate",
-                    "#eab308", // Yellow
+                    "#eab308",
                     "heavy",
-                    "#f97316", // Orange
+                    "#f97316",
                     "severe",
-                    "#ef4444", // Red
-                    "#cbd5e1", // Default Grey
+                    "#ef4444",
+                    "#cbd5e1",
                   ],
                 }}
               />
@@ -164,7 +170,7 @@ const LogisticsPage: React.FC = () => {
               source-layer="building"
               filter={["==", "extrude", "true"]}
               type="fill-extrusion"
-              minzoom={15} // Only show 3D when zoomed in
+              minzoom={15}
               paint={{
                 "fill-extrusion-color": "#aaa",
                 "fill-extrusion-height": ["get", "height"],
@@ -205,7 +211,7 @@ const LogisticsPage: React.FC = () => {
             />
           </div>
 
-          {/* VEHICLE MARKERS */}
+          {/* CLUSTERS & MARKERS */}
           {clusters.map((cluster) => {
             const [lon, lat] = cluster.geometry.coordinates;
             const { cluster: isCluster, point_count: count } =

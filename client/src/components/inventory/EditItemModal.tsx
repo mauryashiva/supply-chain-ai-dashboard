@@ -1,12 +1,9 @@
 import React, { useState, useEffect, type FormEvent } from "react";
 import { Sparkles, Plus, Minus } from "lucide-react";
-// --- Types and API functions ---
+// --- 🛠️ Fixed: Centralized API Services ---
+import { inventoryService, aiService, settingsService } from "@/services/api";
+// --- 🛠️ Fixed: Type-only imports ---
 import type { Product, ProductUpdate, MediaItem, ProductStatus } from "@/types";
-import {
-  updateProduct,
-  generateDescription,
-  getSettings,
-} from "@/services/api";
 // --- Child Components ---
 import { ImageUploader } from "@/components/common/ImageUploader";
 import { ModalLayout } from "@/layouts/ModalLayout";
@@ -68,7 +65,8 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
 
       const fetchSettings = async () => {
         try {
-          const response = await getSettings();
+          // 🛠️ Fixed: Using centralized settingsService
+          const response = await settingsService.getSettings();
           const settingsMap = response.data.reduce(
             (acc, setting) => {
               acc[setting.setting_key] = setting.setting_value;
@@ -144,7 +142,8 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
     setIsGenerating(true);
     setError(null);
     try {
-      const response = await generateDescription(
+      // 🛠️ Fixed: Using centralized aiService
+      const response = await aiService.generateDescription(
         formData.name || "",
         formData.category || "",
       );
@@ -175,7 +174,11 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
     };
 
     try {
-      const response = await updateProduct(product.id, payload);
+      // 🛠️ Fixed: Using centralized inventoryService
+      const response = await inventoryService.updateProduct(
+        product.id,
+        payload,
+      );
       onProductUpdated(response.data);
       onClose();
     } catch (err: any) {

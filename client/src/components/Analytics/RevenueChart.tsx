@@ -8,7 +8,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import type { RevenueDataPoint } from "@/services/api";
+// 🛠️ Fixed: Import from @/types instead of @/services/api
+// 🛠️ Fixed: Used 'import type' for verbatimModuleSyntax compliance
+import type { RevenueDataPoint } from "@/types";
 
 interface RevenueChartProps {
   data: RevenueDataPoint[];

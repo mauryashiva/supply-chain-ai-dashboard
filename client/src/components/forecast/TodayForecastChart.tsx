@@ -9,6 +9,7 @@ import {
   Cell,
 } from "recharts";
 import { Package, AlertTriangle, Clock } from "lucide-react";
+// 🛠️ Fixed: Ensure type-only import and that TodayProductForecast is exported in @/types/index.ts
 import type { TodayProductForecast } from "@/types";
 
 export const TodayForecastChart = ({
@@ -31,7 +32,7 @@ export const TodayForecastChart = ({
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
+      const forecastData = payload[0].payload as TodayProductForecast;
       return (
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-xl">
           <div className="flex items-center gap-3 mb-3">
@@ -40,10 +41,10 @@ export const TodayForecastChart = ({
             </div>
             <div>
               <p className="font-semibold text-slate-900 dark:text-white text-sm">
-                {data.name}
+                {forecastData.name}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                SKU: {data.sku}
+                SKU: {forecastData.sku}
               </p>
             </div>
           </div>
@@ -53,7 +54,7 @@ export const TodayForecastChart = ({
                 Predicted Demand:
               </span>
               <span className="font-semibold text-slate-900 dark:text-white">
-                {data.predicted_demand} units
+                {forecastData.predicted_demand} units
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -61,7 +62,7 @@ export const TodayForecastChart = ({
                 Current Stock:
               </span>
               <span className="font-semibold text-slate-900 dark:text-white">
-                {data.current_stock} units
+                {forecastData.current_stock} units
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -69,7 +70,7 @@ export const TodayForecastChart = ({
                 Days of Stock:
               </span>
               <span className="font-semibold text-slate-900 dark:text-white">
-                {data.days_of_stock} days
+                {forecastData.days_of_stock} days
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -77,7 +78,7 @@ export const TodayForecastChart = ({
                 Confidence:
               </span>
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                {(data.confidence_score * 100).toFixed(0)}%
+                {(forecastData.confidence_score * 100).toFixed(0)}%
               </span>
             </div>
           </div>
@@ -212,13 +213,13 @@ export const TodayForecastChart = ({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+          <div className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-500/10 rounded-lg border border-red-200 dark:border-red-500/20 transition-colors">
             <div className="w-3 h-3 bg-red-500 rounded-full"></div>
             <div>
-              <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase tracking-wide">
                 Critical
               </p>
-              <p className="text-sm font-bold text-red-800 dark:text-red-200">
+              <p className="text-sm font-bold text-red-800 dark:text-red-300">
                 {criticalCount}
               </p>
             </div>
@@ -228,7 +229,7 @@ export const TodayForecastChart = ({
 
       {/* Critical Items Alert */}
       {criticalCount > 0 && (
-        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+        <div className="p-4 bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 rounded-xl">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
               <AlertTriangle

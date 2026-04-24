@@ -1,23 +1,15 @@
 import React, { useEffect, useState, type FormEvent } from "react";
-// Import API functions for user CRUD operations
-import {
-  getUsers,
-  createUser,
-  updateUser,
-  deleteUser,
-} from "@/services/api.ts";
-// Import icons from lucide-react
+// 1. Updated Import: Using the centralized userService
+import { userService } from "@/services/api";
 import {
   PlusCircle,
   Search,
   X,
   Pencil,
   Trash2,
-  AlertTriangle, // Icon for confirmation modal
+  AlertTriangle,
 } from "lucide-react";
-// Import utility for combining class names
 import { cn } from "@/lib/utils";
-// Import TypeScript types
 import type { User, UserCreate, UserUpdate, UserRole } from "@/types";
 
 // --- Add User Modal Component ---
@@ -27,15 +19,11 @@ interface AddUserModalProps {
   onUserAdded: (newUser: User) => void;
 }
 
-/**
- * A modal component for creating a new user.
- */
 const AddUserModal: React.FC<AddUserModalProps> = ({
   isOpen,
   onClose,
   onUserAdded,
 }) => {
-  // State for the new user form data
   const [formData, setFormData] = useState<UserCreate>({
     name: "",
     email: "",
@@ -45,23 +33,22 @@ const AddUserModal: React.FC<AddUserModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Generic change handler for form inputs
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Handles form submission to create a new user
+  // 2. Updated Call: userService.createUser
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const response = await createUser(formData);
-      onUserAdded(response.data); // Pass new user to parent
-      onClose(); // Close modal
-      setFormData({ name: "", email: "", password: "", role: "user" }); // Reset form
+      const response = await userService.createUser(formData);
+      onUserAdded(response.data);
+      onClose();
+      setFormData({ name: "", email: "", password: "", role: "user" });
     } catch (err: any) {
       setError(
         err.response?.data?.detail ||
@@ -74,7 +61,6 @@ const AddUserModal: React.FC<AddUserModalProps> = ({
 
   if (!isOpen) return null;
 
-  // This modal uses a manual layout (not ModalLayout)
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4">
       <div className="bg-zinc-900 rounded-lg shadow-xl p-6 w-full max-w-md relative border border-zinc-700">
@@ -170,9 +156,6 @@ interface EditUserModalProps {
   onUserUpdated: (updatedUser: User) => void;
 }
 
-/**
- * A modal component for editing an existing user's details.
- */
 const EditUserModal: React.FC<EditUserModalProps> = ({
   user,
   isOpen,
@@ -183,20 +166,17 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Populate the form with the selected user's data when the modal opens
-  // Inside EditUserModal component
   useEffect(() => {
     if (user) {
       setFormData({
-        name: user.name || "", // Added fallback
-        email: user.email || "", // Added fallback
+        name: user.name || "",
+        email: user.email || "",
         role: user.role,
         is_active: user.is_active,
       });
     }
   }, [user]);
 
-  // Generic change handler, supports text inputs, selects, and checkboxes
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
@@ -208,16 +188,16 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     });
   };
 
-  // Handles form submission to update the user
+  // 3. Updated Call: userService.updateUser
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await updateUser(user.id, formData);
-      onUserUpdated(response.data); // Pass updated user to parent
-      onClose(); // Close modal
+      const response = await userService.updateUser(user.id, formData);
+      onUserUpdated(response.data);
+      onClose();
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to update user.");
     } finally {
@@ -283,7 +263,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
               <input
                 type="checkbox"
                 name="is_active"
-                checked={formData.is_active ?? true} // Default to true if undefined
+                checked={formData.is_active ?? true}
                 onChange={handleChange}
                 className="h-4 w-4 rounded bg-zinc-700 border-zinc-600 text-cyan-500 focus:ring-cyan-500"
               />
@@ -323,9 +303,6 @@ interface ConfirmationModalProps {
   loading: boolean;
 }
 
-/**
- * A reusable modal to confirm destructive actions, like deleting a user.
- */
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   isOpen,
   onClose,
@@ -368,10 +345,6 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 };
 
 // --- Helper Components ---
-
-/**
- * A small badge component to visually display the user's role.
- */
 const RoleBadge: React.FC<{ role: UserRole }> = ({ role }) => {
   const roleMap: Record<UserRole, string> = {
     admin: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
@@ -389,9 +362,6 @@ const RoleBadge: React.FC<{ role: UserRole }> = ({ role }) => {
   );
 };
 
-/**
- * A small component to show a colored dot and text for Active/Inactive status.
- */
 const StatusIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => {
   return (
     <div className="flex items-center gap-2">
@@ -409,33 +379,24 @@ const StatusIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => {
 };
 
 // --- Main User Page Component ---
-/**
- * The main page component for User Management.
- * It fetches all users and manages the state for modals (Add, Edit, Delete).
- */
 const UsersPage: React.FC = () => {
-  // Main state for the list of users
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Modal visibility states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
-  // State to hold the user currently being acted upon
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
-
-  // Loading state for the delete action
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Fetch all users on component mount
+  // 4. Updated Call: userService.getUsers
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await getUsers();
+        const response = await userService.getUsers();
         setUsers(response.data);
       } catch (error) {
         console.error("Failed to fetch users:", error);
@@ -446,46 +407,38 @@ const UsersPage: React.FC = () => {
     fetchUsers();
   }, []);
 
-  // Filter users based on search term (name or email)
   const filteredUsers = users.filter((user) => {
-    // We use lowercase fallback to empty strings to prevent crashes
     const name = user.name?.toLowerCase() || "";
     const email = user.email?.toLowerCase() || "";
     const search = searchTerm.toLowerCase();
-
     return name.includes(search) || email.includes(search);
   });
 
-  // Callback for when a new user is added
   const handleUserAdded = (newUser: User) => {
-    setUsers([newUser, ...users]); // Add new user to the top of the list
+    setUsers([newUser, ...users]);
   };
 
-  // Opens the Edit modal
   const handleEditClick = (user: User) => {
     setEditingUser(user);
     setIsEditModalOpen(true);
   };
 
-  // Callback for when a user is updated
   const handleUserUpdated = (updatedUser: User) => {
     setUsers(users.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
   };
 
-  // Opens the Delete confirmation modal
   const handleDeleteClick = (user: User) => {
     setUserToDelete(user);
     setIsConfirmModalOpen(true);
   };
 
-  // Handles the actual deletion after confirmation
+  // 5. Updated Call: userService.deleteUser
   const handleConfirmDelete = async () => {
     if (!userToDelete) return;
-
     setIsDeleting(true);
     try {
-      await deleteUser(userToDelete.id);
-      setUsers(users.filter((u) => u.id !== userToDelete.id)); // Remove from list
+      await userService.deleteUser(userToDelete.id);
+      setUsers(users.filter((u) => u.id !== userToDelete.id));
       setIsConfirmModalOpen(false);
       setUserToDelete(null);
     } catch (error) {
@@ -498,7 +451,6 @@ const UsersPage: React.FC = () => {
 
   return (
     <>
-      {/* Render all the modals */}
       <AddUserModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -519,14 +471,12 @@ const UsersPage: React.FC = () => {
         loading={isDeleting}
       />
 
-      {/* Main Page Content */}
       <div className="bg-zinc-900 rounded-lg shadow-lg p-6">
-        {/* Page Header */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white">User Management</h1>
             <p className="text-sm text-zinc-400">
-              Manage your team members and their account permissions.
+              Manage team members and permissions.
             </p>
           </div>
           <button
@@ -538,7 +488,6 @@ const UsersPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Search Bar */}
         <div className="mb-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-zinc-400" />
@@ -552,45 +501,41 @@ const UsersPage: React.FC = () => {
           </div>
         </div>
 
-        {/* User Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-zinc-800">
             <thead className="bg-zinc-800/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
                   Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
                   Email
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-zinc-300 uppercase">
                   Status
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-zinc-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-zinc-300 uppercase">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-zinc-900 divide-y divide-zinc-800">
               {loading ? (
-                // Loading state row
                 <tr>
                   <td colSpan={5} className="text-center py-8 text-zinc-400">
                     Loading users...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
-                // Empty state row
                 <tr>
                   <td colSpan={5} className="text-center py-8 text-zinc-400">
                     No users found.
                   </td>
                 </tr>
               ) : (
-                // Data rows
                 filteredUsers.map((user) => (
                   <tr
                     key={user.id}
@@ -609,19 +554,16 @@ const UsersPage: React.FC = () => {
                       <StatusIndicator isActive={user.is_active} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {/* Action buttons: Edit and Delete */}
                       <div className="flex items-center justify-end gap-3">
                         <button
                           onClick={() => handleEditClick(user)}
-                          className="text-cyan-400 hover:text-cyan-300 transition-colors"
-                          title="Edit User"
+                          className="text-cyan-400 hover:text-cyan-300"
                         >
                           <Pencil size={16} />
                         </button>
                         <button
                           onClick={() => handleDeleteClick(user)}
-                          className="text-red-500 hover:text-red-400 transition-colors"
-                          title="Delete User"
+                          className="text-red-500 hover:text-red-400"
                         >
                           <Trash2 size={16} />
                         </button>

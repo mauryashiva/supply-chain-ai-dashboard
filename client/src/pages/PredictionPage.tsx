@@ -159,11 +159,16 @@ const PredictionPage: React.FC = () => {
                     {item.product || item.name || "Unknown"}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold">
-                    {item.predicted_qty || item.quantity || item.value || 0}
+                    {item.recommended_order_size ||
+                      item.predicted_qty ||
+                      item.quantity ||
+                      item.value ||
+                      0}
                   </td>
                   <td className="px-4 py-3 text-right text-zinc-600 dark:text-zinc-400 font-mono">
                     ₹
                     {(
+                      item.reorder_at_stock_level ||
                       item.expected_revenue ||
                       item.profit ||
                       item.revenue ||
@@ -278,38 +283,54 @@ const PredictionPage: React.FC = () => {
         {result && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {(intent === "FORECAST" || intent === "PAST_RECORD") &&
-                result.forecast_30d_total && (
-                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl shadow-xl flex items-center gap-4 border-l-4 border-l-cyan-600 dark:border-l-cyan-500 transition-colors">
-                    <div className="p-3 bg-cyan-600/10 dark:bg-cyan-500/10 rounded-lg">
-                      <DollarSign className="text-cyan-600 dark:text-cyan-400" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">
-                        30D Projected Forecast
-                      </span>
-                      <p className="text-2xl font-bold text-zinc-900 dark:text-white">
-                        {result.forecast_30d_total}
-                      </p>
-                    </div>
+              {(result.forecast_30d_total ||
+                (intent === "FORECAST" && result.forecast_30d_total)) && (
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl shadow-xl flex items-center gap-4 border-l-4 border-l-cyan-600 dark:border-l-cyan-500 transition-colors">
+                  <div className="p-3 bg-cyan-600/10 dark:bg-cyan-500/10 rounded-lg">
+                    <DollarSign className="text-cyan-600 dark:text-cyan-400" />
                   </div>
-                )}
-              {(intent === "HISTORICAL" || intent === "PAST_RECORD") &&
-                result.total_revenue && (
-                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl shadow-xl flex items-center gap-4 border-l-4 border-l-green-600 dark:border-l-green-500 transition-colors">
-                    <div className="p-3 bg-green-600/10 dark:bg-green-500/10 rounded-lg">
-                      <HistoryIcon className="text-green-600 dark:text-green-400" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">
-                        Total Historical Revenue
-                      </span>
-                      <p className="text-2xl font-bold text-zinc-900 dark:text-white font-mono">
-                        ₹{result.total_revenue.toLocaleString()}
-                      </p>
-                    </div>
+                  <div>
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">
+                      30D Projected Forecast
+                    </span>
+                    <p className="text-2xl font-bold text-zinc-900 dark:text-white">
+                      {result.forecast_30d_total}
+                    </p>
                   </div>
-                )}
+                </div>
+              )}
+
+              {result.total_revenue && (
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl shadow-xl flex items-center gap-4 border-l-4 border-l-green-600 dark:border-l-green-500 transition-colors">
+                  <div className="p-3 bg-green-600/10 dark:bg-green-500/10 rounded-lg">
+                    <HistoryIcon className="text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">
+                      Total Historical Revenue
+                    </span>
+                    <p className="text-2xl font-bold text-zinc-900 dark:text-white font-mono">
+                      ₹{result.total_revenue.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {result.top_product && (
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl shadow-xl flex items-center gap-4 border-l-4 border-l-amber-500 transition-colors md:col-span-2">
+                  <div className="p-3 bg-amber-500/10 rounded-lg">
+                    <TrendingUp className="text-amber-500" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-tighter">
+                      Best Selling Product
+                    </span>
+                    <p className="text-2xl font-bold text-zinc-900 dark:text-white uppercase">
+                      {result.top_product}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-xl flex gap-5 items-start shadow-xl border-l-4 border-l-cyan-600 dark:border-l-cyan-500 transition-colors">
@@ -325,25 +346,62 @@ const PredictionPage: React.FC = () => {
                     ? result
                     : result.message ||
                       result.summary ||
-                      "Analysis report generated successfully."}
+                      (result.total_orders
+                        ? `Found ${result.total_orders} historical records for this analysis.`
+                        : "Analysis report generated successfully.")}
                 </div>
               </div>
             </div>
 
-            {(result.top_buy_list || result.least_priority_list) && (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="space-y-8">
+              {result.abc_data && (
                 <DataTable
-                  title="Optimized Buy List"
+                  title="ABC Inventory Classification"
                   type="buy"
-                  data={result.top_buy_list || []}
+                  data={result.abc_data.map((item: any) => ({
+                    product: `${item.product} (Class ${item.category})`,
+                    revenue: item.revenue,
+                    value: "Revenue Share",
+                  }))}
                 />
+              )}
+
+              {result.inventory_optimization && (
                 <DataTable
-                  title="Low Velocity / Risk"
-                  type="dead"
-                  data={result.least_priority_list || []}
+                  title="Optimized Reorder Strategy (EOQ)"
+                  type="buy"
+                  data={result.inventory_optimization}
                 />
-              </div>
-            )}
+              )}
+
+              {result.monthly_breakdown && (
+                <div className="grid grid-cols-1 gap-6">
+                  {result.monthly_breakdown.map((m: any, i: number) => (
+                    <DataTable
+                      key={i}
+                      title={`Peak Demand: ${m.month}`}
+                      type="buy"
+                      data={m.top_products}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {(result.top_buy_list || result.least_priority_list) && (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                  <DataTable
+                    title="High Demand Forecast"
+                    type="buy"
+                    data={result.top_buy_list || []}
+                  />
+                  <DataTable
+                    title="Low Velocity Risks"
+                    type="dead"
+                    data={result.least_priority_list || []}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -414,7 +472,7 @@ const PredictionPage: React.FC = () => {
             ))
           ) : (
             <div className="text-center py-20">
-              <Clock className="w-10 h-10 text-zinc-300 dark:text-zinc-800 mx-auto mb-4" />
+              <HistoryIcon className="w-10 h-10 text-zinc-300 dark:text-zinc-800 mx-auto mb-4" />
               <p className="text-zinc-500 dark:text-zinc-600 text-sm italic">
                 No past analyses found.
               </p>

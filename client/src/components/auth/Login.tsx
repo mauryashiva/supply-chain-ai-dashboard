@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { supabase } from "@/lib/supabase";
-import { loginUser } from "@/services/api";
+// 🛠️ Fixed: Updated import to use the centralized authService
+import { authService } from "@/services/api";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, ShieldCheck, ChevronRight } from "lucide-react";
 
@@ -92,14 +93,15 @@ export const Login = () => {
         return;
       }
 
-      // 3. Backend Session (Handles 400 errors gracefully)
+      // 3. Backend Session (Using Centralized authService)
       let backendToken: string | null = null;
       try {
         const backendForm = new FormData();
         backendForm.append("username", formData.email);
         backendForm.append("password", formData.password);
 
-        const backendLoginResponse = await loginUser(backendForm);
+        // 🛠️ Fixed: Changed loginUser(backendForm) to authService.login(backendForm)
+        const backendLoginResponse = await authService.login(backendForm);
         backendToken = backendLoginResponse.data?.access_token;
 
         if (backendToken) {
@@ -113,7 +115,7 @@ export const Login = () => {
         console.warn("Backend session failed, but Supabase is active.");
       }
 
-      // 4. Speak Supabase token to backend if we don't yet have one
+      // 4. Fallback: Use Supabase token if backend specific login failed
       if (!backendToken && authData?.session?.access_token) {
         localStorage.setItem("token", authData.session.access_token);
         localStorage.setItem(
@@ -125,7 +127,7 @@ export const Login = () => {
         );
       }
 
-      // 4. Success Redirect
+      // 5. Success Redirect
       navigate("/", { replace: true });
       window.location.reload();
     } catch (err) {

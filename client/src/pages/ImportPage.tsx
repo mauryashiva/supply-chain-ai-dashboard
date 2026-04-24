@@ -10,18 +10,9 @@ import {
   FileWarning,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-// Import all necessary API functions for CSV operations
-import {
-  uploadInventoryCSV,
-  uploadOrdersCSV,
-  exportInventoryCSV,
-  exportOrdersCSV,
-  downloadInventoryTemplate,
-  downloadOrderTemplate,
-  downloadInventoryErrorFile,
-  downloadOrderErrorFile, // API function for downloading order errors
-} from "@/services/api";
-import { saveAs } from "file-saver"; // Utility for triggering file downloads
+// 1. Updated Import: Using the centralized bulkService
+import { bulkService } from "@/services/api";
+import { saveAs } from "file-saver";
 
 /**
  * A reusable file dropzone component for CSV files.
@@ -35,8 +26,8 @@ interface DropzoneProps {
 const FileDropzone: React.FC<DropzoneProps> = ({ onDrop, loading, title }) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { "text/csv": [".csv"] }, // Only accept CSV files
-    multiple: false, // Only allow one file at a time
+    accept: { "text/csv": [".csv"] },
+    multiple: false,
   });
 
   return (
@@ -46,12 +37,11 @@ const FileDropzone: React.FC<DropzoneProps> = ({ onDrop, loading, title }) => {
         "border-2 border-dashed border-zinc-700 rounded-lg p-12 text-center transition-colors cursor-pointer",
         isDragActive
           ? "border-cyan-500 bg-zinc-800/50"
-          : "hover:border-zinc-500"
+          : "hover:border-zinc-500",
       )}
     >
       <input {...getInputProps()} />
       {loading ? (
-        // Loading state
         <div className="flex flex-col items-center">
           <Loader className="mx-auto h-12 w-12 text-cyan-400 animate-spin" />
           <p className="mt-4 text-sm text-zinc-400">
@@ -59,7 +49,6 @@ const FileDropzone: React.FC<DropzoneProps> = ({ onDrop, loading, title }) => {
           </p>
         </div>
       ) : (
-        // Default state
         <div className="flex flex-col items-center">
           <Upload className="mx-auto h-12 w-12 text-zinc-500" />
           <p className="mt-4 text-sm text-zinc-400">{title}</p>
@@ -70,11 +59,8 @@ const FileDropzone: React.FC<DropzoneProps> = ({ onDrop, loading, title }) => {
   );
 };
 
-/**
- * The main page component for handling all data import and export operations.
- */
 const ImportPage: React.FC = () => {
-  // State for Inventory import/export
+  // State for Inventory
   const [invLoading, setInvLoading] = useState(false);
   const [invError, setInvError] = useState<string | null>(null);
   const [invSuccess, setInvSuccess] = useState<string | null>(null);
@@ -83,27 +69,25 @@ const ImportPage: React.FC = () => {
   const [invTemplateLoading, setInvTemplateLoading] = useState(false);
   const [invErrorFileLoading, setInvErrorFileLoading] = useState(false);
 
-  // State for Order import/export
+  // State for Orders
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [orderErrorReportId, setOrderErrorReportId] = useState<string | null>(
-    null
-  ); // State for the order error report ID
+    null,
+  );
   const [orderExportLoading, setOrderExportLoading] = useState(false);
   const [orderTemplateLoading, setOrderTemplateLoading] = useState(false);
-  const [orderErrorFileLoading, setOrderErrorFileLoading] = useState(false); // State for order error file download loading
+  const [orderErrorFileLoading, setOrderErrorFileLoading] = useState(false);
 
-  // Shared state for any export/download related error messages
   const [exportError, setExportError] = useState<string | null>(null);
 
   /**
-   * Handles the file drop and upload process for the Inventory CSV.
+   * 2. Updated Call: bulkService.uploadInventoryCSV
    */
   const onInventoryDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     const file = acceptedFiles[0];
-    // Reset all inventory-related states
     setInvLoading(true);
     setInvError(null);
     setInvSuccess(null);
@@ -111,7 +95,7 @@ const ImportPage: React.FC = () => {
     setInvErrorReportId(null);
 
     try {
-      const response = await uploadInventoryCSV(file);
+      const response = await bulkService.uploadInventoryCSV(file);
       const data = response.data;
       const added = data.products_added || 0;
       const updated = data.products_updated || 0;
@@ -119,138 +103,97 @@ const ImportPage: React.FC = () => {
       let successMessage =
         data.message || `${added} products added, ${updated} products updated.`;
 
-      // If errors were returned, set the error message and store the report ID
       if (errors.length > 0) {
         setInvError(`${errors.length} row(s) had errors. See details below.`);
         if (data.error_report_id) {
           setInvErrorReportId(data.error_report_id);
         }
       }
-      // Set a clean success message
       setInvSuccess(
-        successMessage.replace(` ${errors.length} row(s) had errors.`, "")
+        successMessage.replace(` ${errors.length} row(s) had errors.`, ""),
       );
     } catch (err: any) {
-      // Handle API errors (e.g., validation, server errors)
       let errorMessage = "File upload failed. Please try again.";
       const errorData = err.response?.data;
-      const detail = errorData?.detail;
-
-      // Check for structured error response from the backend
-      if (errorData && errorData.message && Array.isArray(errorData.errors)) {
-        errorMessage = errorData.message || "An unknown error occurred.";
+      if (errorData?.message && Array.isArray(errorData.errors)) {
+        errorMessage = errorData.message;
         if (errorData.errors.length > 0) {
           errorMessage += ` ${errorData.errors.length} error(s) recorded.`;
-          if (errorData.error_report_id) {
+          if (errorData.error_report_id)
             setInvErrorReportId(errorData.error_report_id);
-          }
         }
-      } else if (typeof detail === "string") {
-        errorMessage = detail; // Use simple string detail if available
-      } else if (
-        typeof detail === "object" &&
-        detail !== null &&
-        detail.message
-      ) {
-        errorMessage = detail.message; // Use nested error message
-      } else if (err.message) {
-        errorMessage = err.message; // Fallback to generic error message
+      } else {
+        errorMessage = errorData?.detail || err.message || errorMessage;
       }
       setInvError(errorMessage);
-      setInvSuccess(null);
     } finally {
       setInvLoading(false);
     }
   }, []);
 
   /**
-   * Handles the file drop and upload process for the Orders CSV.
+   * 3. Updated Call: bulkService.uploadOrdersCSV
    */
   const onOrdersDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
     const file = acceptedFiles[0];
-    // Reset all order-related states
     setOrderLoading(true);
     setOrderError(null);
     setOrderSuccess(null);
     setExportError(null);
-    setOrderErrorReportId(null); // Reset order error report ID
+    setOrderErrorReportId(null);
 
     try {
-      const response = await uploadOrdersCSV(file);
-      const data = response.data; // Expect OrderUploadResponse
+      const response = await bulkService.uploadOrdersCSV(file);
+      const data = response.data;
       const added = data.orders_created || 0;
       const errors = data.errors || [];
-
       let successMessage = data.message || `${added} orders created.`;
 
-      // If errors were returned, set the error message and store the report ID
       if (errors.length > 0) {
-        setOrderError(
-          `${errors.length} row(s) / order(s) had errors. See details below.`
-        );
-        if (data.error_report_id) {
-          setOrderErrorReportId(data.error_report_id); // Store order error report ID
-        }
+        setOrderError(`${errors.length} row(s) had errors. See details below.`);
+        if (data.error_report_id) setOrderErrorReportId(data.error_report_id);
       }
-      // Clean up and set the success message
       setOrderSuccess(
         successMessage
           .replace(
             ` ${errors.length} row(s) corresponding to failed orders had errors.`,
-            ""
+            "",
           )
           .replace(
             ` ${errors.length} row(s) had errors. No orders were created.`,
-            ""
-          )
+            "",
+          ),
       );
     } catch (err: any) {
-      // Handle API errors
       let errorMessage = "Order file upload failed. Please try again.";
       const errorData = err.response?.data;
-      const detail = errorData?.detail;
-
-      // Check for structured error response
-      if (errorData && errorData.message && Array.isArray(errorData.errors)) {
-        errorMessage =
-          errorData.message || "An unknown error occurred during order upload.";
+      if (errorData?.message && Array.isArray(errorData.errors)) {
+        errorMessage = errorData.message;
         if (errorData.errors.length > 0) {
           errorMessage += ` ${errorData.errors.length} error(s) recorded.`;
-          if (errorData.error_report_id) {
-            setOrderErrorReportId(errorData.error_report_id); // Store order report ID from error
-          }
+          if (errorData.error_report_id)
+            setOrderErrorReportId(errorData.error_report_id);
         }
-      } else if (typeof detail === "string") {
-        errorMessage = detail;
-      } else if (
-        typeof detail === "object" &&
-        detail !== null &&
-        detail.message
-      ) {
-        errorMessage = detail.message;
-      } else if (err.message) {
-        errorMessage = err.message;
+      } else {
+        errorMessage = errorData?.detail || err.message || errorMessage;
       }
-
       setOrderError(errorMessage);
-      setOrderSuccess(null);
     } finally {
       setOrderLoading(false);
     }
   }, []);
 
   /**
-   * Handles exporting all inventory data to a CSV file.
+   * 4. Updated Call: bulkService.exportInventoryCSV
    */
   const handleInventoryExport = useCallback(async () => {
     setInvExportLoading(true);
     setExportError(null);
     try {
-      const response = await exportInventoryCSV();
-      saveAs(response.data, "inventory_export.csv"); // Use file-saver
+      const response = await bulkService.exportInventoryCSV();
+      saveAs(response.data, "inventory_export.csv");
     } catch (err) {
-      console.error(err);
       setExportError("Failed to export inventory.");
     } finally {
       setInvExportLoading(false);
@@ -258,16 +201,15 @@ const ImportPage: React.FC = () => {
   }, []);
 
   /**
-   * Handles exporting all order data to a CSV file.
+   * 5. Updated Call: bulkService.exportOrdersCSV
    */
   const handleOrdersExport = useCallback(async () => {
     setOrderExportLoading(true);
     setExportError(null);
     try {
-      const response = await exportOrdersCSV();
-      saveAs(response.data, "orders_export.csv"); // Use file-saver
+      const response = await bulkService.exportOrdersCSV();
+      saveAs(response.data, "orders_export.csv");
     } catch (err) {
-      console.error(err);
       setExportError("Failed to export orders.");
     } finally {
       setOrderExportLoading(false);
@@ -275,16 +217,15 @@ const ImportPage: React.FC = () => {
   }, []);
 
   /**
-   * Handles downloading the CSV template for inventory imports.
+   * 6. Updated Call: bulkService.downloadInventoryTemplate
    */
   const handleInventoryTemplateDownload = useCallback(async () => {
     setInvTemplateLoading(true);
     setExportError(null);
     try {
-      const response = await downloadInventoryTemplate();
+      const response = await bulkService.downloadInventoryTemplate();
       saveAs(response.data, "inventory_import_template.csv");
     } catch (err) {
-      console.error(err);
       setExportError("Failed to download inventory template.");
     } finally {
       setInvTemplateLoading(false);
@@ -292,16 +233,15 @@ const ImportPage: React.FC = () => {
   }, []);
 
   /**
-   * Handles downloading the CSV template for order imports.
+   * 7. Updated Call: bulkService.downloadOrderTemplate
    */
   const handleOrderTemplateDownload = useCallback(async () => {
     setOrderTemplateLoading(true);
     setExportError(null);
     try {
-      const response = await downloadOrderTemplate();
+      const response = await bulkService.downloadOrderTemplate();
       saveAs(response.data, "orders_import_template.csv");
     } catch (err) {
-      console.error(err);
       setExportError("Failed to download orders template.");
     } finally {
       setOrderTemplateLoading(false);
@@ -309,21 +249,21 @@ const ImportPage: React.FC = () => {
   }, []);
 
   /**
-   * Handles downloading the inventory error report file using the stored report ID.
+   * 8. Updated Call: bulkService.downloadInventoryErrorFile
    */
   const handleDownloadInventoryErrorFile = useCallback(async () => {
     if (!invErrorReportId) return;
     setInvErrorFileLoading(true);
     setExportError(null);
     try {
-      const response = await downloadInventoryErrorFile(invErrorReportId);
+      const response =
+        await bulkService.downloadInventoryErrorFile(invErrorReportId);
       saveAs(response.data, `inventory_errors_${invErrorReportId}.csv`);
     } catch (err: any) {
-      console.error("Error downloading inventory error file:", err);
       let errorMsg = "Failed to download inventory error file.";
       if (err.response?.status === 404) {
         errorMsg = "Inventory error report not found or expired.";
-        setInvErrorReportId(null); // Clear the invalid ID
+        setInvErrorReportId(null);
       }
       setExportError(errorMsg);
     } finally {
@@ -332,32 +272,30 @@ const ImportPage: React.FC = () => {
   }, [invErrorReportId]);
 
   /**
-   * Handles downloading the order error report file using the stored report ID.
+   * 9. Updated Call: bulkService.downloadOrderErrorFile
    */
   const handleDownloadOrderErrorFile = useCallback(async () => {
     if (!orderErrorReportId) return;
-
     setOrderErrorFileLoading(true);
     setExportError(null);
     try {
-      const response = await downloadOrderErrorFile(orderErrorReportId);
+      const response =
+        await bulkService.downloadOrderErrorFile(orderErrorReportId);
       saveAs(response.data, `order_errors_${orderErrorReportId}.csv`);
     } catch (err: any) {
-      console.error("Error downloading order error file:", err);
       let errorMsg = "Failed to download order error file.";
       if (err.response?.status === 404) {
         errorMsg = "Order error report not found or expired.";
-        setOrderErrorReportId(null); // Clear the invalid ID
+        setOrderErrorReportId(null);
       }
       setExportError(errorMsg);
     } finally {
       setOrderErrorFileLoading(false);
     }
-  }, [orderErrorReportId]); // Depends on the order error report ID
+  }, [orderErrorReportId]);
 
   return (
     <div className="bg-zinc-900 rounded-lg shadow-lg p-6">
-      {/* Page Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Import & Export Data</h1>
         <p className="text-sm text-zinc-400">
@@ -365,20 +303,17 @@ const ImportPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Common Error message for Export/Template/ErrorFile Download */}
       {exportError && (
         <div className="mb-4 p-3 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 flex items-center gap-3">
           <AlertCircle size={16} /> <p className="text-sm">{exportError}</p>
         </div>
       )}
 
-      {/* Main Grid: Inventory and Orders sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* === Section 1: Inventory === */}
         <div className="border-t border-zinc-800 pt-6 flex flex-col gap-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold text-white">Inventory</h2>
-            {/* Inventory Export Button */}
             <button
               onClick={handleInventoryExport}
               disabled={invExportLoading}
@@ -393,14 +328,12 @@ const ImportPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Inventory Dropzone */}
           <FileDropzone
             onDrop={onInventoryDrop}
             loading={invLoading}
             title="Drag & drop Inventory CSV to Import"
           />
 
-          {/* Inventory Template Download Button */}
           <button
             onClick={handleInventoryTemplateDownload}
             disabled={invTemplateLoading}
@@ -414,25 +347,22 @@ const ImportPage: React.FC = () => {
             Download Template
           </button>
 
-          {/* Inventory Success Message */}
           {invSuccess && (
             <div className="mt-4 p-3 rounded-md bg-green-500/10 border border-green-500/30 text-green-300 flex items-center gap-3">
               <CheckCircle size={16} /> <p className="text-sm">{invSuccess}</p>
             </div>
           )}
 
-          {/* Inventory Error Message and Error File Download */}
           {invError && (
             <div className="mt-4 p-3 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 flex flex-col gap-2">
               <div className="flex items-center gap-3">
                 <AlertCircle size={16} /> <p className="text-sm">{invError}</p>
               </div>
-              {/* Conditional Download Error Button for Inventory */}
               {invErrorReportId && (
                 <button
                   onClick={handleDownloadInventoryErrorFile}
                   disabled={invErrorFileLoading}
-                  className="flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-xs bg-red-900/50 text-red-200 rounded-md hover:bg-red-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-xs bg-red-900/50 text-red-200 rounded-md hover:bg-red-800/50 disabled:opacity-50 transition-colors"
                 >
                   {invErrorFileLoading ? (
                     <Loader className="h-4 w-4 animate-spin" />
@@ -450,7 +380,6 @@ const ImportPage: React.FC = () => {
         <div className="border-t border-zinc-800 pt-6 flex flex-col gap-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold text-white">Orders</h2>
-            {/* Orders Export Button */}
             <button
               onClick={handleOrdersExport}
               disabled={orderExportLoading}
@@ -465,14 +394,12 @@ const ImportPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Orders Dropzone */}
           <FileDropzone
             onDrop={onOrdersDrop}
             loading={orderLoading}
             title="Drag & drop Orders CSV to Import"
           />
 
-          {/* Orders Template Download Button */}
           <button
             onClick={handleOrderTemplateDownload}
             disabled={orderTemplateLoading}
@@ -486,27 +413,24 @@ const ImportPage: React.FC = () => {
             Download Template
           </button>
 
-          {/* Orders Success Message */}
           {orderSuccess && (
             <div className="mt-4 p-3 rounded-md bg-green-500/10 border border-green-500/30 text-green-300 flex items-center gap-3">
-              <CheckCircle size={16} />
+              <CheckCircle size={16} />{" "}
               <p className="text-sm">{orderSuccess}</p>
             </div>
           )}
 
-          {/* Orders Error Message and Error File Download */}
           {orderError && (
             <div className="mt-4 p-3 rounded-md bg-red-500/10 border border-red-500/30 text-red-300 flex flex-col gap-2">
               <div className="flex items-center gap-3">
-                <AlertCircle size={16} />
+                <AlertCircle size={16} />{" "}
                 <p className="text-sm">{orderError}</p>
               </div>
-              {/* Conditional Download Error Button for Orders */}
               {orderErrorReportId && (
                 <button
                   onClick={handleDownloadOrderErrorFile}
                   disabled={orderErrorFileLoading}
-                  className="flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-xs bg-red-900/50 text-red-200 rounded-md hover:bg-red-800/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center justify-center gap-2 mt-2 px-3 py-1.5 text-xs bg-red-900/50 text-red-200 rounded-md hover:bg-red-800/50 disabled:opacity-50 transition-colors"
                 >
                   {orderErrorFileLoading ? (
                     <Loader className="h-4 w-4 animate-spin" />

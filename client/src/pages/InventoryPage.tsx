@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { getProducts, deleteProduct } from "@/services/api";
+// 🛠️ Fixed: Updated to use centralized inventoryService
+import { inventoryService } from "@/services/api";
 import { PlusCircle, Search } from "lucide-react";
+// 🛠️ Fixed: Updated to type-only import for standard compliance
 import type { Product } from "@/types";
 
 import { InventoryTable } from "@/components/inventory/InventoryTable";
@@ -15,6 +17,7 @@ type OutletContextType = {
 };
 
 const InventoryPage: React.FC = () => {
+  // --- 1. STATE MANAGEMENT ---
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -29,14 +32,16 @@ const InventoryPage: React.FC = () => {
 
   const { refreshKey } = useOutletContext<OutletContextType>();
 
+  // --- 2. DATA FETCHING ---
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const response = await getProducts();
+        // 🛠️ Fixed: Changed getProducts() to inventoryService.getProducts()
+        const response = await inventoryService.getProducts();
         setProducts(response.data);
       } catch (error) {
-        console.error(error);
+        console.error("Failed to fetch products:", error);
       } finally {
         setLoading(false);
       }
@@ -44,6 +49,7 @@ const InventoryPage: React.FC = () => {
     fetchProducts();
   }, [refreshKey]);
 
+  // --- 3. LOGIC & HANDLERS ---
   const filteredProducts = products.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,9 +78,12 @@ const InventoryPage: React.FC = () => {
     if (!productToDelete) return;
     setIsDeleting(true);
     try {
-      await deleteProduct(productToDelete.id);
+      // 🛠️ Fixed: Changed deleteProduct() to inventoryService.deleteProduct()
+      await inventoryService.deleteProduct(productToDelete.id);
       setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
       setIsConfirmModalOpen(false);
+    } catch (error) {
+      console.error("Failed to delete product:", error);
     } finally {
       setIsDeleting(false);
     }
@@ -118,8 +127,8 @@ const InventoryPage: React.FC = () => {
         />
       )}
 
-      {/* Page */}
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-5 sm:p-6 border border-gray-200 dark:border-zinc-800">
+      {/* Page UI */}
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-5 sm:p-6 border border-gray-200 dark:border-zinc-800 transition-colors duration-300">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
           <div>
@@ -133,14 +142,14 @@ const InventoryPage: React.FC = () => {
 
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg shadow-sm transition"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-5 rounded-lg shadow-sm transition-all active:scale-95"
           >
             <PlusCircle size={18} />
             Add New Item
           </button>
         </div>
 
-        {/* Search */}
+        {/* Search Bar */}
         <div className="mb-5">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 dark:text-zinc-500" />
@@ -149,12 +158,12 @@ const InventoryPage: React.FC = () => {
               placeholder="Search by name, SKU, or category..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg pl-10 pr-4 py-2 font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg pl-10 pr-4 py-2.5 font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
           </div>
         </div>
 
-        {/* Content */}
+        {/* Content Area */}
         {loading ? (
           <div className="text-center py-12 font-bold text-gray-600 dark:text-zinc-400 flex justify-center items-center gap-3">
             <svg
@@ -179,10 +188,10 @@ const InventoryPage: React.FC = () => {
             Loading inventory...
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-12 font-bold text-gray-600 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800 rounded-lg">
+          <div className="text-center py-12 font-bold text-gray-600 dark:text-zinc-400 bg-gray-50 dark:bg-zinc-800 rounded-lg border-2 border-dashed border-gray-200 dark:border-zinc-700">
             {searchTerm
               ? `No products found for "${searchTerm}"`
-              : "No products found. Add a new item."}
+              : "No products found. Add a new item to get started."}
           </div>
         ) : (
           <InventoryTable

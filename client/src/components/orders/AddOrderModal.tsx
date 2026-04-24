@@ -10,7 +10,8 @@ import type {
   OrderStatus,
   DiscountType,
 } from "@/types";
-import { createOrder } from "@/services/api";
+// 1. Updated Import: Using the centralized orderService
+import { orderService } from "@/services/api";
 import { QuickAddProductModal } from "./QuickAddProductModal";
 import { ModalLayout } from "@/layouts/ModalLayout";
 
@@ -215,6 +216,7 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     setIsQuickAddOpen(true);
   };
 
+  // 2. Updated handleSubmit logic to use orderService
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (formState.items.length === 0) {
@@ -246,7 +248,8 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     };
 
     try {
-      const response = await createOrder(payload);
+      // 3. Updated API call to the centralized orderService
+      const response = await orderService.createOrder(payload);
       onOrderAdded(response.data);
       onClose();
     } catch (err: any) {
@@ -257,7 +260,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
     }
   };
 
-  // Reusable Adaptive Input Styles
   const inputStyles =
     "w-full bg-gray-50 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 outline-none transition-all";
   const labelStyles =
@@ -285,7 +287,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
-              {/* --- CUSTOMER DETAILS --- */}
               <fieldset className={fieldsetStyles}>
                 <legend className={legendStyles}>Customer Details</legend>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -336,7 +337,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 </div>
               </fieldset>
 
-              {/* --- ORDER ITEMS --- */}
               <fieldset className={fieldsetStyles}>
                 <legend className={legendStyles}>Order Items</legend>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_100px_auto_auto] gap-2 items-end">
@@ -438,7 +438,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
             </div>
 
             <div className="space-y-4">
-              {/* --- FULFILLMENT & PAYMENT --- */}
               <fieldset className={fieldsetStyles}>
                 <legend className={legendStyles}>Fulfillment & Payment</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -547,7 +546,6 @@ export const AddOrderModal: React.FC<AddOrderModalProps> = ({
                 </div>
               </fieldset>
 
-              {/* --- ORDER SUMMARY --- */}
               <fieldset className="border border-dashed border-gray-300 dark:border-zinc-600 p-5 rounded-2xl bg-gray-50/50 dark:bg-zinc-900/30 transition-colors">
                 <legend className="px-2 text-sm font-bold text-gray-600 dark:text-zinc-400 flex items-center gap-2">
                   <TrendingUp size={14} /> Order Summary
