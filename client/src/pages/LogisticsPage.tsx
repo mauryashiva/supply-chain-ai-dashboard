@@ -1,13 +1,12 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useState, useRef } from "react";
 import Map, { Marker, Source, Layer } from "react-map-gl";
 import type { MapRef, ViewStateChangeEvent } from "react-map-gl";
 import useSupercluster from "use-supercluster";
 import { Truck } from "lucide-react";
 
-// 🛠️ Fixed: Updated to use centralized logisticsService
-import { logisticsService } from "@/services/api";
+// 🛠️ Hook & Utils
+import { useLogistics } from "@/hooks/useLogistics";
 import { cn } from "@/lib/utils";
-// 🛠️ Fixed: Updated type imports to be type-only for standard compliance
 import type { Vehicle, VehicleStatus } from "@/types";
 
 // Components
@@ -21,15 +20,17 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 
 const LogisticsPage: React.FC = () => {
-  // --- 1. STATE MANAGEMENT ---
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const mapRef = useRef<MapRef>(null);
+  const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || "";
+
+  // --- 1. UI STATE ---
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<VehicleStatus | "All">(
     "All",
   );
+  const [currentMapStyle, setCurrentMapStyle] = useState<MapStyle>("Default");
 
-  // Toggle States linked to MapControls
+  // Layer Toggles
   const [showTraffic, setShowTraffic] = useState(false);
   const [show3D, setShow3D] = useState(true);
   const [showPublicTransport, setShowPublicTransport] = useState(false);
@@ -46,63 +47,7 @@ const LogisticsPage: React.FC = () => {
     bearing: 0,
   });
 
-  const [currentMapStyle, setCurrentMapStyle] = useState<MapStyle>("Default");
-  const mapRef = useRef<MapRef>(null);
-  const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || "";
-
-  // --- 2. DATA FETCHING ---
-  const fetchVehicles = async () => {
-    try {
-      // 🛠️ Fixed: Changed getVehicles() to logisticsService.getVehicles()
-      const response = await logisticsService.getVehicles();
-      setVehicles(response.data);
-
-      // Select the first vehicle if none is selected yet
-      if (response.data.length > 0 && !selectedVehicle) {
-        setSelectedVehicle(response.data[0]);
-      }
-    } catch (error) {
-      console.error("Failed to fetch vehicles:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchVehicles();
-    const interval = setInterval(fetchVehicles, 30000); // Auto-refresh every 30s
-    return () => clearInterval(interval);
-  }, []);
-
-  // --- 3. INTERACTION LOGIC ---
-  const handleVehicleSelect = (v: Vehicle) => {
-    setSelectedVehicle(v);
-    mapRef.current?.flyTo({
-      center: [v.longitude, v.latitude],
-      duration: 1500,
-      zoom: 14,
-    });
-  };
-
-  const filteredVehicles = useMemo(() => {
-    return vehicles
-      .filter((v) => statusFilter === "All" || v.status === statusFilter)
-      .filter(
-        (v) =>
-          v.vehicle_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          v.driver_name.toLowerCase().includes(searchTerm.toLowerCase()),
-      );
-  }, [vehicles, searchTerm, statusFilter]);
-
-  // Clustering logic for Mapbox
-  const points = useMemo(
-    () =>
-      filteredVehicles.map((v) => ({
-        type: "Feature",
-        properties: { cluster: false, vehicleId: v.id, vehicle: v },
-        geometry: { type: "Point", coordinates: [v.longitude, v.latitude] },
-      })),
-    [filteredVehicles],
-  );
-
+  // --- 2. DATA HOOK ---
   const bounds = mapRef.current
     ? (mapRef.current.getMap().getBounds().toArray().flat() as [
         number,
@@ -112,6 +57,15 @@ const LogisticsPage: React.FC = () => {
       ])
     : undefined;
 
+  const {
+    vehicles,
+    filteredVehicles,
+    selectedVehicle,
+    setSelectedVehicle,
+    points,
+  } = useLogistics(statusFilter, searchTerm);
+
+  // --- 3. CLUSTERING ---
   const { clusters, supercluster } = useSupercluster({
     points,
     bounds,
@@ -119,8 +73,18 @@ const LogisticsPage: React.FC = () => {
     options: { radius: 75, maxZoom: 20 },
   });
 
+  // --- 4. HANDLERS ---
+  const handleVehicleSelect = (v: Vehicle) => {
+    setSelectedVehicle(v);
+    mapRef.current?.flyTo({
+      center: [v.longitude, v.latitude],
+      duration: 1500,
+      zoom: 14,
+    });
+  };
+
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-3 bg-[#F1F5F9] dark:bg-zinc-950 p-3 font-sans transition-colors duration-300">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-100px)] gap-3 bg-[#F1F5F9] dark:bg-zinc-950 p-3 transition-colors duration-300">
       {/* MAP SECTION */}
       <div className="flex-1 bg-white dark:bg-zinc-900 rounded-[24px] shadow-sm overflow-hidden relative border border-white dark:border-zinc-800">
         <Map
@@ -131,7 +95,7 @@ const LogisticsPage: React.FC = () => {
           mapboxAccessToken={MAPBOX_TOKEN}
           antialias={true}
         >
-          {/* --- LAYER: TRAFFIC --- */}
+          {/* TRAFFIC LAYER */}
           {showTraffic && (
             <Source
               id="mapbox-traffic"
@@ -162,7 +126,7 @@ const LogisticsPage: React.FC = () => {
             </Source>
           )}
 
-          {/* --- LAYER: 3D BUILDINGS --- */}
+          {/* 3D BUILDINGS */}
           {show3D && (
             <Layer
               id="3d-buildings"
@@ -211,7 +175,7 @@ const LogisticsPage: React.FC = () => {
             />
           </div>
 
-          {/* CLUSTERS & MARKERS */}
+          {/* CLUSTERS & VEHICLE MARKERS */}
           {clusters.map((cluster) => {
             const [lon, lat] = cluster.geometry.coordinates;
             const { cluster: isCluster, point_count: count } =
@@ -219,17 +183,24 @@ const LogisticsPage: React.FC = () => {
 
             if (isCluster) {
               return (
-                <Marker key={`c-${cluster.id}`} latitude={lat} longitude={lon}>
+                <Marker
+                  key={`cluster-${cluster.id}`}
+                  latitude={lat}
+                  longitude={lon}
+                >
                   <div
                     className="w-9 h-9 bg-blue-600 dark:bg-cyan-600 border-2 border-white dark:border-zinc-900 rounded-full flex items-center justify-center text-white font-black text-xs shadow-xl cursor-pointer"
                     onClick={() => {
-                      const z = Math.min(
+                      const expansionZoom = Math.min(
                         supercluster.getClusterExpansionZoom(
                           cluster.id as number,
                         ),
                         20,
                       );
-                      mapRef.current?.flyTo({ center: [lon, lat], zoom: z });
+                      mapRef.current?.flyTo({
+                        center: [lon, lat],
+                        zoom: expansionZoom,
+                      });
                     }}
                   >
                     {count}
@@ -239,20 +210,20 @@ const LogisticsPage: React.FC = () => {
             }
 
             const v = cluster.properties.vehicle as Vehicle;
-            const active = selectedVehicle?.id === v.id;
+            const isActive = selectedVehicle?.id === v.id;
             return (
-              <Marker key={`v-${v.id}`} longitude={lon} latitude={lat}>
+              <Marker key={`vehicle-${v.id}`} longitude={lon} latitude={lat}>
                 <div
                   className="cursor-pointer relative group"
                   onClick={() => handleVehicleSelect(v)}
                 >
-                  {active && (
+                  {isActive && (
                     <div className="absolute -inset-2 bg-blue-500/20 dark:bg-cyan-500/20 rounded-full animate-ping" />
                   )}
                   <div
                     className={cn(
                       "p-1.5 rounded-full transition-all border shadow-lg",
-                      active
+                      isActive
                         ? "bg-blue-600 dark:bg-cyan-600 border-white dark:border-zinc-900 scale-110"
                         : "bg-white dark:bg-zinc-800 border-slate-200 dark:border-zinc-700",
                     )}
@@ -260,7 +231,7 @@ const LogisticsPage: React.FC = () => {
                     <Truck
                       size={16}
                       className={
-                        active
+                        isActive
                           ? "text-white"
                           : "text-blue-600 dark:text-cyan-400"
                       }

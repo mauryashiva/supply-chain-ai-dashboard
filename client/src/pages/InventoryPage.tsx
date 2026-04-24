@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useOutletContext } from "react-router-dom";
-// 🛠️ Fixed: Updated to use centralized inventoryService
-import { inventoryService } from "@/services/api";
 import { PlusCircle, Search } from "lucide-react";
-// 🛠️ Fixed: Updated to type-only import for standard compliance
+// 🛠️ Matches your modular services and new hook
+import { inventoryService } from "@/services/api";
+import { useProducts } from "@/hooks/useProducts";
 import type { Product } from "@/types";
 
 import { InventoryTable } from "@/components/inventory/InventoryTable";
@@ -17,11 +17,19 @@ type OutletContextType = {
 };
 
 const InventoryPage: React.FC = () => {
-  // --- 1. STATE MANAGEMENT ---
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { refreshKey } = useOutletContext<OutletContextType>();
   const [searchTerm, setSearchTerm] = useState("");
 
+  // --- 1. USE CUSTOM HOOK ---
+  const {
+    products,
+    loading,
+    addProductLocally,
+    updateProductLocally,
+    removeProductLocally,
+  } = useProducts(refreshKey);
+
+  // --- 2. MODAL STATES ---
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -30,26 +38,7 @@ const InventoryPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
 
-  const { refreshKey } = useOutletContext<OutletContextType>();
-
-  // --- 2. DATA FETCHING ---
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        // 🛠️ Fixed: Changed getProducts() to inventoryService.getProducts()
-        const response = await inventoryService.getProducts();
-        setProducts(response.data);
-      } catch (error) {
-        console.error("Failed to fetch products:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProducts();
-  }, [refreshKey]);
-
-  // --- 3. LOGIC & HANDLERS ---
+  // --- 3. UI HANDLERS ---
   const filteredProducts = products.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,29 +47,12 @@ const InventoryPage: React.FC = () => {
         product.category.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
-  const handleProductAdded = (newProduct: Product) => {
-    setProducts((prev) =>
-      [newProduct, ...prev].sort((a, b) => a.name.localeCompare(b.name)),
-    );
-    setIsAddModalOpen(false);
-  };
-
-  const handleProductUpdated = (updated: Product) => {
-    setProducts((prev) =>
-      prev
-        .map((p) => (p.id === updated.id ? updated : p))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    );
-    setIsEditModalOpen(false);
-  };
-
   const handleConfirmDelete = async () => {
     if (!productToDelete) return;
     setIsDeleting(true);
     try {
-      // 🛠️ Fixed: Changed deleteProduct() to inventoryService.deleteProduct()
       await inventoryService.deleteProduct(productToDelete.id);
-      setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+      removeProductLocally(productToDelete.id);
       setIsConfirmModalOpen(false);
     } catch (error) {
       console.error("Failed to delete product:", error);
@@ -91,11 +63,10 @@ const InventoryPage: React.FC = () => {
 
   return (
     <>
-      {/* Modals */}
       <AddItemModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        onProductAdded={handleProductAdded}
+        onProductAdded={addProductLocally}
       />
 
       {editingProduct && (
@@ -106,7 +77,7 @@ const InventoryPage: React.FC = () => {
             setIsEditModalOpen(false);
             setEditingProduct(null);
           }}
-          onProductUpdated={handleProductUpdated}
+          onProductUpdated={updateProductLocally}
         />
       )}
 
@@ -127,7 +98,6 @@ const InventoryPage: React.FC = () => {
         />
       )}
 
-      {/* Page UI */}
       <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-5 sm:p-6 border border-gray-200 dark:border-zinc-800 transition-colors duration-300">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
@@ -149,7 +119,7 @@ const InventoryPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Search Bar */}
+        {/* Search */}
         <div className="mb-5">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 dark:text-zinc-500" />
@@ -163,28 +133,10 @@ const InventoryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Content Area */}
+        {/* Content */}
         {loading ? (
           <div className="text-center py-12 font-bold text-gray-600 dark:text-zinc-400 flex justify-center items-center gap-3">
-            <svg
-              className="animate-spin h-6 w-6 text-blue-600"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-                fill="none"
-                className="opacity-25"
-              />
-              <path
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5 0 0 5 0 12h4z"
-                className="opacity-75"
-              />
-            </svg>
+            <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full" />
             Loading inventory...
           </div>
         ) : filteredProducts.length === 0 ? (

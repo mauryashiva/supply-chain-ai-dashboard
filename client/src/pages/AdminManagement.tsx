@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import React, { useState } from "react";
 import { ModalLayout } from "@/layouts/ModalLayout";
+import {
+  useAdminManagement,
+  type AuthorizedAdmin,
+} from "@/hooks/useAdminManagement";
 import {
   UserPlus,
   Shield,
@@ -23,104 +26,45 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export const AdminManagement = () => {
-  const [email, setEmail] = useState("");
-  const [accessLevel, setAccessLevel] = useState<"full_access" | "view_only">(
-    "view_only",
-  );
-  const [authorizedList, setAuthorizedList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  // --- 1. DATA HOOK ---
+  const {
+    authorizedList,
+    currentUserEmail,
+    loading,
+    authorizeAdmin,
+    updateAdminLevel,
+    revokeAdmin,
+  } = useAdminManagement();
+
+  // --- 2. LOCAL UI STATE ---
+  const [emailInput, setEmailInput] = useState("");
+  const [accessLevelInput, setAccessLevelInput] = useState<
+    "full_access" | "view_only"
+  >("view_only");
   const [searchTerm, setSearchTerm] = useState("");
-  const [currentUserEmail, setCurrentUserEmail] = useState("");
-
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedAdmin, setSelectedAdmin] = useState<any>(null);
+  const [selectedAdmin, setSelectedAdmin] = useState<AuthorizedAdmin | null>(
+    null,
+  );
 
-  // 🛠️ INITIALIZE: Get current logged in user
-  useEffect(() => {
-    supabase.auth
-      .getUser()
-      .then(({ data }) => setCurrentUserEmail(data.user?.email || ""));
-  }, []);
-
-  // 🛠️ FETCH & REAL-TIME: Always stay in sync
-  const fetchAuthorizedAdmins = async () => {
-    const { data, error } = await supabase
-      .from("authorized_admins")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (!error) setAuthorizedList(data || []);
-  };
-
-  useEffect(() => {
-    fetchAuthorizedAdmins();
-
-    // 📡 REAL-TIME SUBSCRIPTION
-    const channel = supabase
-      .channel("admin-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "authorized_admins" },
-        () => {
-          fetchAuthorizedAdmins();
-        },
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // 🛠️ INLINE UPDATE: Direct role change
-  const handleInlineUpdate = async (targetEmail: string, newLevel: string) => {
-    setLoading(true);
-    const { error } = await supabase
-      .from("authorized_admins")
-      .update({ access_level: newLevel })
-      .eq("email", targetEmail);
-
-    if (error) {
-      alert("Failed to update access level.");
-    } else {
-      fetchAuthorizedAdmins();
-    }
-    setLoading(false);
-  };
-
+  // --- 3. HANDLERS ---
   const handleAuthorize = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const { error } = await supabase
-      .from("authorized_admins")
-      .insert([{ email, access_level: accessLevel }]);
-
-    if (error) alert("Error: User already exists.");
-    else {
-      setEmail("");
-      fetchAuthorizedAdmins();
-    }
-    setLoading(false);
+    const { error } = await authorizeAdmin(emailInput, accessLevelInput);
+    if (error) alert("Error: User already exists or connection failed.");
+    else setEmailInput("");
   };
 
-  const removeAuthorization = async () => {
+  const handleInlineUpdate = async (targetEmail: string, newLevel: string) => {
+    const { error } = await updateAdminLevel(targetEmail, newLevel);
+    if (error) alert("Failed to update access level.");
+  };
+
+  const handleConfirmRevocation = async () => {
     if (!selectedAdmin) return;
-    setLoading(true);
-
-    const { error } = await supabase
-      .from("authorized_admins")
-      .delete()
-      .eq("email", selectedAdmin.email);
-
-    if (error) {
-      alert("Failed to revoke permissions.");
-    } else {
-      setAuthorizedList((prev) =>
-        prev.filter((a) => a.email !== selectedAdmin.email),
-      );
-      setIsDeleteModalOpen(false);
-    }
-    setLoading(false);
+    const { error } = await revokeAdmin(selectedAdmin.email);
+    if (error) alert("Failed to revoke permissions.");
+    else setIsDeleteModalOpen(false);
   };
 
   const filteredAdmins = authorizedList.filter((admin) =>
@@ -128,7 +72,7 @@ export const AdminManagement = () => {
   );
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#09090b] p-6 md:p-12 transition-colors">
+    <div className="min-h-screen bg-white dark:bg-[#09090b] p-6 md:p-12 transition-colors duration-500">
       {/* DELETE MODAL */}
       <ModalLayout
         isOpen={isDeleteModalOpen}
@@ -155,9 +99,9 @@ export const AdminManagement = () => {
               Cancel
             </button>
             <button
-              onClick={removeAuthorization}
+              onClick={handleConfirmRevocation}
               disabled={loading}
-              className="flex-1 h-11 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 text-sm transition-all shadow-sm"
+              className="flex-1 h-11 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 text-sm transition-all shadow-sm disabled:opacity-50"
             >
               {loading ? "Revoking..." : "Confirm Revocation"}
             </button>
@@ -191,38 +135,38 @@ export const AdminManagement = () => {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          {/* Enrollment Sidebar */}
           <section className="lg:col-span-4">
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm space-y-6">
               <div className="flex items-center gap-2 font-bold text-zinc-900 dark:text-zinc-100 text-sm uppercase tracking-tight">
-                <UserPlus size={18} className="text-cyan-600" /> Enroll New
-                Administrator
+                <UserPlus size={18} className="text-cyan-600" /> Enroll Admin
               </div>
 
               <form onSubmit={handleAuthorize} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-500 tracking-wide">
+                  <label className="text-xs font-semibold text-zinc-500">
                     Email Address
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
                     <input
                       type="email"
                       placeholder="admin@supplychain.ai"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full h-11 pl-10 pr-4 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:border-cyan-500 transition-all text-sm font-medium outline-none text-zinc-900 dark:text-white"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="w-full h-11 pl-10 pr-4 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:border-cyan-500 text-sm font-medium outline-none text-zinc-900 dark:text-white"
                       required
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-500 tracking-wide">
+                  <label className="text-xs font-semibold text-zinc-500">
                     Permission Level
                   </label>
                   <select
-                    value={accessLevel}
-                    onChange={(e) => setAccessLevel(e.target.value as any)}
+                    value={accessLevelInput}
+                    onChange={(e) => setAccessLevelInput(e.target.value as any)}
                     className="w-full h-11 px-3 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-sm font-medium outline-none focus:border-cyan-500 text-zinc-900 dark:text-white"
                   >
                     <option value="view_only">Read-Only Observer</option>
@@ -232,8 +176,8 @@ export const AdminManagement = () => {
 
                 <button
                   type="submit"
-                  disabled={loading || !email}
-                  className="w-full h-11 bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-900 font-bold rounded-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xs uppercase tracking-widest shadow-sm"
+                  disabled={loading || !emailInput}
+                  className="w-full h-11 bg-zinc-950 dark:bg-zinc-50 text-white dark:text-zinc-900 font-bold rounded-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-xs uppercase tracking-widest"
                 >
                   {loading ? "Registering..." : "Authorize Identity"}
                   {!loading && <ChevronRight size={14} />}
@@ -242,6 +186,7 @@ export const AdminManagement = () => {
             </div>
           </section>
 
+          {/* Personnel List */}
           <section className="lg:col-span-8 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400">
@@ -277,15 +222,13 @@ export const AdminManagement = () => {
                         <p className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
                           {admin.email}
                         </p>
-
-                        {/* SPECIAL BADGES */}
                         {admin.email === "mauryashiva060@gmail.com" && (
                           <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 text-[8px] font-black uppercase tracking-tighter">
                             <Crown size={8} /> Owner
                           </span>
                         )}
                         {admin.email === currentUserEmail && (
-                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[8px] font-black uppercase tracking-tighter border border-cyan-500/20">
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-[8px] font-black uppercase border border-cyan-500/20">
                             You
                           </span>
                         )}
@@ -317,8 +260,8 @@ export const AdminManagement = () => {
                             className={cn(
                               "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border outline-none cursor-pointer transition-all disabled:opacity-50",
                               admin.access_level === "full_access"
-                                ? "bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-100 dark:border-orange-500/20"
-                                : "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-500/20",
+                                ? "bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-100"
+                                : "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-100",
                             )}
                           >
                             <option value="full_access">Full Admin</option>
@@ -329,21 +272,19 @@ export const AdminManagement = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      disabled={
-                        admin.email === "mauryashiva060@gmail.com" ||
-                        admin.email === currentUserEmail
-                      }
-                      onClick={() => {
-                        setSelectedAdmin(admin);
-                        setIsDeleteModalOpen(true);
-                      }}
-                      className="p-2.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  <button
+                    disabled={
+                      admin.email === "mauryashiva060@gmail.com" ||
+                      admin.email === currentUserEmail
+                    }
+                    onClick={() => {
+                      setSelectedAdmin(admin);
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="p-2.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               ))}
             </div>
