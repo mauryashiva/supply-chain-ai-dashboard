@@ -1,30 +1,45 @@
 import { useEffect, useState } from "react";
 
-type Theme = "light" | "dark";
+export type Theme = "light" | "dark" | "system";
 
 export const useTheme = () => {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem("theme") as Theme) || "system";
+  });
 
   useEffect(() => {
-    const saved = localStorage.getItem("theme") as Theme | null;
+    const root = window.document.documentElement;
 
-    const systemDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
+    // Function to apply theme classes
+    const applyTheme = (currentTheme: Theme) => {
+      root.classList.remove("light", "dark");
 
-    const initialTheme: Theme = saved || (systemDark ? "dark" : "light");
+      if (currentTheme === "system") {
+        const systemDark = window.matchMedia(
+          "(prefers-color-scheme: dark)",
+        ).matches;
+        root.classList.add(systemDark ? "dark" : "light");
+      } else {
+        root.classList.add(currentTheme);
+      }
+    };
 
-    setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
-  }, []);
+    applyTheme(theme);
 
-  const toggleTheme = () => {
-    const next: Theme = theme === "dark" ? "light" : "dark";
+    // Listen for System preference changes if theme is set to 'system'
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      if (theme === "system") applyTheme("system");
+    };
 
-    setTheme(next);
-    localStorage.setItem("theme", next);
-    document.documentElement.classList.toggle("dark", next === "dark");
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
+
+  const updateTheme = (newTheme: Theme) => {
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
   };
 
-  return { theme, toggleTheme };
+  return { theme, setTheme: updateTheme };
 };

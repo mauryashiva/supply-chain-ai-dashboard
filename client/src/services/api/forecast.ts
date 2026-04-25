@@ -7,7 +7,7 @@ export const forecastService = {
       params: { product_id: productId },
     }),
 
-  getTopMovers: () => apiClient.get("/forecast/top-movers-tomorrow"),
+  // getTopMovers: () => apiClient.get("/forecast/top-movers-tomorrow"),
   getTodayInference: () =>
     apiClient.get<TodayProductForecast[]>("/forecast/today-forecast"),
 };

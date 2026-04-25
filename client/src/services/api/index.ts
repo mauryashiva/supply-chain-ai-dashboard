@@ -6,7 +6,6 @@ export * from "./analytics";
 export * from "./orders";
 export * from "./users";
 export * from "./settings";
-export * from "./bulk";
 export * from "./ai";
 export * from "./forecast"; // Added this one too!
 export * from "./logistics";

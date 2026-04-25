@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -6,47 +6,16 @@ import {
   Package,
   Truck,
   Users,
-  Settings,
-  Bell,
   PanelLeft,
-  Menu,
   X,
-  FileUp,
   Brain,
-  Sun,
-  Moon,
   LogOut,
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SettingsModal } from "@/components/settings/SettingsModal";
-import { supabase } from "@/lib/supabase"; // Import supabase for logout
-
-/* ---------------- THEME HOOK ---------------- */
-
-const useTheme = () => {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    const saved = localStorage.getItem("theme") as "light" | "dark" | null;
-    const systemDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    const initial = saved || (systemDark ? "dark" : "light");
-
-    setTheme(initial);
-    document.documentElement.classList.toggle("dark", initial === "dark");
-  }, []);
-
-  const toggleTheme = () => {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    localStorage.setItem("theme", next);
-    document.documentElement.classList.toggle("dark", next === "dark");
-  };
-
-  return { theme, toggleTheme };
-};
+import { supabase } from "@/lib/supabase";
+import { DashboardTopbar } from "./DashboardTopbar";
 
 /* ---------------- NAV ITEM ---------------- */
 
@@ -77,8 +46,8 @@ const NavItem: React.FC<NavItemProps> = ({
     <Icon className="h-5 w-5 flex-shrink-0" />
     <span
       className={cn(
-        "overflow-hidden whitespace-nowrap",
-        isExpanded ? "w-full" : "w-0",
+        "overflow-hidden whitespace-nowrap transition-all",
+        isExpanded ? "w-full opacity-100" : "w-0 opacity-0",
       )}
     >
       {label}
@@ -92,27 +61,27 @@ const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/analytics", label: "Analytics", icon: BarChart2 },
   { to: "/forecast", label: "AI Forecast", icon: Brain },
-  { to: "/prediction", label: "AI Prediction", icon: Brain },
   { to: "/orders", label: "Orders", icon: Package },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/logistics", label: "Logistics", icon: Truck },
-  { to: "/import", label: "Import / Export", icon: FileUp },
   { to: "/users", label: "Users", icon: Users },
-  // Added Admin Management to the Sidebar
   { to: "/admin-management", label: "Admin Control", icon: ShieldCheck },
 ];
 
 /* ---------------- MAIN LAYOUT ---------------- */
 
 const DashboardLayout: React.FC = () => {
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
+  // --- 1. UI STATE ---
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  // refreshKey is passed to child routes via Outlet context
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // --- 2. HANDLERS ---
   const handleSettingsSave = () => {
     setIsSettingsModalOpen(false);
     setRefreshKey((prev) => prev + 1);
@@ -121,6 +90,8 @@ const DashboardLayout: React.FC = () => {
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
     if (!error) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
       navigate("/login");
     } else {
       console.error("Logout failed:", error.message);
@@ -129,6 +100,7 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <>
+      {/* GLOBAL SETTINGS MODAL */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
@@ -137,15 +109,16 @@ const DashboardLayout: React.FC = () => {
 
       <div
         className={cn(
-          "grid min-h-screen w-full bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white transition",
+          "grid min-h-screen w-full bg-gray-50 dark:bg-zinc-950 text-gray-900 dark:text-white transition-all duration-300",
           isSidebarExpanded
             ? "md:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr]"
             : "md:grid-cols-[70px_1fr]",
         )}
       >
         {/* DESKTOP SIDEBAR */}
-        <div className="hidden border-r border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 md:block">
+        <aside className="hidden border-r border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 md:block">
           <div className="flex h-full flex-col">
+            {/* BRAND HEADER */}
             <div className="flex h-14 items-center justify-between border-b border-gray-200 dark:border-zinc-800 px-4">
               <NavLink to="/" className="flex items-center gap-2 font-semibold">
                 <Truck className="h-6 w-6 text-blue-600" />
@@ -158,12 +131,13 @@ const DashboardLayout: React.FC = () => {
 
               <button
                 onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-                className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-800"
+                className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
               >
                 <PanelLeft className="h-5 w-5" />
               </button>
             </div>
 
+            {/* MAIN NAVIGATION */}
             <nav className="flex-1 px-2 py-4 text-sm font-medium space-y-1">
               {navItems.map((item) => (
                 <NavItem
@@ -174,7 +148,7 @@ const DashboardLayout: React.FC = () => {
               ))}
             </nav>
 
-            {/* LOGOUT BUTTON IN SIDEBAR */}
+            {/* SIDEBAR FOOTER ACTIONS */}
             <div className="p-2 border-t border-gray-200 dark:border-zinc-800">
               <button
                 onClick={handleLogout}
@@ -188,54 +162,25 @@ const DashboardLayout: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* MAIN AREA */}
+        {/* MAIN VIEWPORT */}
         <div className="flex flex-col h-screen overflow-hidden">
-          <header className="flex h-14 items-center gap-4 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4">
-            <button
-              className="md:hidden p-2"
-              onClick={() => setIsMobileSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-
-            <div className="flex-1" />
-
-            {/* THEME TOGGLE BUTTON */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800"
-            >
-              {theme === "dark" ? (
-                <Sun className="h-5 w-5 text-yellow-500" />
-              ) : (
-                <Moon className="h-5 w-5 text-gray-700" />
-              )}
-            </button>
-
-            <button className="p-2 relative rounded-lg border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800">
-              <Bell className="h-5 w-5 text-gray-600 dark:text-zinc-400" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900" />
-            </button>
-
-            <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800"
-            >
-              <Settings className="h-5 w-5 text-gray-600 dark:text-zinc-400" />
-            </button>
-          </header>
+          {/* 🛠️ Fixed: Removed theme/toggleTheme props as Topbar now handles its own theme independently */}
+          <DashboardTopbar
+            setIsMobileSidebarOpen={setIsMobileSidebarOpen}
+            setIsSettingsModalOpen={setIsSettingsModalOpen}
+          />
 
           <main className="flex-1 p-4 sm:p-6 bg-gray-50 dark:bg-zinc-950 overflow-auto">
             <Outlet context={{ refreshKey }} />
           </main>
         </div>
 
-        {/* MOBILE SIDEBAR */}
+        {/* MOBILE SIDEBAR OVERLAY */}
         <div
           className={cn(
-            "fixed inset-0 z-50 bg-black/30 transition-opacity md:hidden",
+            "fixed inset-0 z-50 bg-black/30 backdrop-blur-sm transition-opacity md:hidden",
             isMobileSidebarOpen
               ? "opacity-100"
               : "opacity-0 pointer-events-none",
@@ -244,7 +189,7 @@ const DashboardLayout: React.FC = () => {
         >
           <div
             className={cn(
-              "absolute left-0 top-0 h-full w-72 bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 transition-transform duration-300",
+              "absolute left-0 top-0 h-full w-72 bg-white dark:bg-zinc-900 border-r border-gray-200 dark:border-zinc-800 transition-transform duration-300 shadow-2xl",
               isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full",
             )}
             onClick={(e) => e.stopPropagation()}
@@ -268,7 +213,7 @@ const DashboardLayout: React.FC = () => {
               <div className="p-4 border-t border-gray-200 dark:border-zinc-800">
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-3 w-full rounded-lg px-3 py-2 text-red-500 font-bold"
+                  className="flex items-center gap-3 w-full rounded-lg px-3 py-2 text-red-500 font-bold transition hover:bg-red-50 dark:hover:bg-red-900/10"
                 >
                   <LogOut className="h-5 w-5" />
                   <span>Logout</span>

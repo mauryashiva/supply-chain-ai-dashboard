@@ -1,5 +1,8 @@
-import { VehicleStatus } from "./common";
+import type { VehicleStatus } from "./common";
 
+/**
+ * Represents a single vehicle in the logistics fleet.
+ */
 export interface Vehicle {
   id: number;
   vehicle_number: string;
@@ -10,13 +13,4 @@ export interface Vehicle {
   fuel_level: number;
   latitude: number;
   longitude: number;
-}
-
-export interface AppSetting {
-  setting_key: string;
-  setting_value: string;
-}
-
-export interface AppSettingsUpdate {
-  settings: AppSetting[];
 }

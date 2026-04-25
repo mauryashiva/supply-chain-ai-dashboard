@@ -8,7 +8,7 @@ import {
 /* ---------------- AUTH COMPONENTS ---------------- */
 import { Login } from "@/components/auth/Login";
 import { Signup } from "@/components/auth/Signup";
-import { ResetPassword } from "@/components/auth/ResetPassword.tsx"; // Updated path
+import { ResetPassword } from "@/components/auth/ResetPassword.tsx";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AdminManagement } from "@/pages/AdminManagement";
 
@@ -44,9 +44,7 @@ import OrdersPage from "@/pages/OrdersPage";
 import InventoryPage from "@/pages/InventoryPage";
 import LogisticsPage from "@/pages/LogisticsPage";
 import UsersPage from "@/pages/UsersPage";
-import ImportPage from "@/pages/ImportPage";
 import ForecastPage from "@/pages/ForecastPage";
-import PredictionPage from "./pages/PredictionPage";
 
 /* ---------------- ROUTES CONFIGURATION ---------------- */
 const router = createBrowserRouter([
@@ -55,7 +53,6 @@ const router = createBrowserRouter([
   { path: "/signup", element: <Signup /> },
 
   // 🔑 RESET PASSWORD ROUTE
-  // This must be a top-level route so Supabase can redirect here directly from the email link
   { path: "/reset-password", element: <ResetPassword /> },
 
   // PROTECTED DASHBOARD ROUTES
@@ -70,10 +67,8 @@ const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: "analytics", element: <AnalyticsPage /> },
       { path: "forecast", element: <ForecastPage /> },
-      { path: "prediction", element: <PredictionPage /> },
       { path: "orders", element: <OrdersPage /> },
       { path: "inventory", element: <InventoryPage /> },
-      { path: "import", element: <ImportPage /> },
       { path: "logistics", element: <LogisticsPage /> },
       { path: "users", element: <UsersPage /> },
 
