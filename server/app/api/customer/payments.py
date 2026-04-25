@@ -8,18 +8,21 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+# Modular Imports
 from ...config import settings
 from ...database import get_db
-from ...models import models
+from ...models import shared as shared_models
+from ...models.admin import inventory as inventory_models
+from ...models.admin import order as order_models
 from ..auth import get_current_user
 
 router = APIRouter()
 
+# --- INTERNAL SCHEMAS ---
 
 class CheckoutItem(BaseModel):
     product_id: int
     quantity: int = Field(gt=0)
-
 
 class RazorpayOrderCreateRequest(BaseModel):
     items: List[CheckoutItem]
@@ -28,22 +31,29 @@ class RazorpayOrderCreateRequest(BaseModel):
     shipping_charges: Optional[float] = 0.0
     receipt: Optional[str] = None
 
-
 class RazorpayPaymentVerifyRequest(BaseModel):
     razorpay_order_id: str
     razorpay_payment_id: str
     razorpay_signature: str
 
+# --- HELPERS ---
 
 def _calculate_total_amount(payload: RazorpayOrderCreateRequest, db: Session) -> float:
+    """
+    Logic to calculate the final payable amount by validating stock 
+    and extracting GST from inclusive pricing.
+    """
     total_subtotal = 0.0
-    total_amount = 0.0
+    total_amount_inclusive = 0.0
 
     if not payload.items:
         raise HTTPException(status_code=400, detail="No checkout items provided")
 
     for item in payload.items:
-        product = db.query(models.Product).filter(models.Product.id == item.product_id).first()
+        # Use modular admin inventory model
+        product = db.query(inventory_models.Product).filter(
+            inventory_models.Product.id == item.product_id
+        ).first()
 
         if not product:
             raise HTTPException(
@@ -57,34 +67,37 @@ def _calculate_total_amount(payload: RazorpayOrderCreateRequest, db: Session) ->
                 detail=f"Insufficient stock for {product.name}",
             )
 
-        price_including_gst = product.selling_price or 0.0
+        price_inc_gst = product.selling_price or 0.0
         gst_rate = product.gst_rate or 0.0
 
-        taxable_price = (
-            price_including_gst / (1 + gst_rate / 100) if gst_rate else price_including_gst
-        )
-        item_subtotal = taxable_price * item.quantity
-        item_total = price_including_gst * item.quantity
+        # Extract Taxable Base (Exclusive of GST)
+        taxable_price = price_inc_gst / (1 + gst_rate / 100) if gst_rate else price_inc_gst
+        
+        total_subtotal += (taxable_price * item.quantity)
+        total_amount_inclusive += (price_inc_gst * item.quantity)
 
-        total_subtotal += item_subtotal
-        total_amount += item_total
+    final_total = total_amount_inclusive + (payload.shipping_charges or 0.0)
 
-    final_total = total_amount + (payload.shipping_charges or 0.0)
-
-    if payload.discount_type == models.DiscountType.percentage.value:
+    # Use modular admin order enums for logic
+    if payload.discount_type == order_models.DiscountType.percentage.value:
         final_total -= total_subtotal * ((payload.discount_value or 0) / 100)
-    elif payload.discount_type == models.DiscountType.fixed.value:
+    elif payload.discount_type == order_models.DiscountType.fixed.value:
         final_total -= payload.discount_value or 0
 
     return max(0, final_total)
 
 
+# --- ENDPOINTS ---
+
 @router.post("/razorpay/create-order", status_code=status.HTTP_201_CREATED)
 async def create_razorpay_order(
     payload: RazorpayOrderCreateRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: shared_models.User = Depends(get_current_user),
 ):
+    """
+    Initiates a Razorpay order with the calculated amount in paise.
+    """
     if not settings.RAZORPAY_KEY_ID or not settings.RAZORPAY_KEY_SECRET:
         raise HTTPException(
             status_code=500,
@@ -92,6 +105,7 @@ async def create_razorpay_order(
         )
 
     final_total = _calculate_total_amount(payload, db)
+    # Razorpay expects amount in the smallest currency unit (paise for INR)
     amount_in_paise = int(round(final_total * 100))
 
     if amount_in_paise <= 0:
@@ -99,26 +113,27 @@ async def create_razorpay_order(
 
     client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
-    receipt = payload.receipt or (
+    receipt_id = payload.receipt or (
         f"rcpt_{current_user.id}_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
     )
 
     try:
-        order = client.order.create(
+        razorpay_order = client.order.create(
             {
                 "amount": amount_in_paise,
                 "currency": "INR",
-                "receipt": receipt,
+                "receipt": receipt_id,
                 "payment_capture": 1,
             }
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Razorpay error: {exc}") from exc
+        print(f"Razorpay Error: {exc}")
+        raise HTTPException(status_code=502, detail="Failed to create payment order with gateway")
 
     return {
-        "order_id": order.get("id"),
-        "amount": order.get("amount"),
-        "currency": order.get("currency", "INR"),
+        "order_id": razorpay_order.get("id"),
+        "amount": razorpay_order.get("amount"),
+        "currency": razorpay_order.get("currency", "INR"),
         "key_id": settings.RAZORPAY_KEY_ID,
     }
 
@@ -126,14 +141,18 @@ async def create_razorpay_order(
 @router.post("/razorpay/verify", status_code=status.HTTP_200_OK)
 async def verify_razorpay_payment(
     payload: RazorpayPaymentVerifyRequest,
-    current_user: models.User = Depends(get_current_user),
+    current_user: shared_models.User = Depends(get_current_user),
 ):
+    """
+    Verifies the HMAC signature provided by Razorpay to ensure payment integrity.
+    """
     if not settings.RAZORPAY_KEY_SECRET:
         raise HTTPException(
             status_code=500,
-            detail="Razorpay is not configured on the server",
+            detail="Gateway secret not configured",
         )
 
+    # Signature verification logic
     signature_payload = f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}"
     expected_signature = hmac.new(
         settings.RAZORPAY_KEY_SECRET.encode("utf-8"),
@@ -142,7 +161,7 @@ async def verify_razorpay_payment(
     ).hexdigest()
 
     if not hmac.compare_digest(expected_signature, payload.razorpay_signature):
-        raise HTTPException(status_code=400, detail="Invalid Razorpay signature")
+        raise HTTPException(status_code=400, detail="Invalid payment signature")
 
     return {
         "verified": True,

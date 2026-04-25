@@ -1,38 +1,37 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+
+# Modular Imports
 from ...database import get_db
-from ...models import models
-from ...schemas import schemas
+from ...models.customer import address as address_models
+from ...models.shared import User
+from ...schemas.customer import address as address_schemas
 from ..auth import get_current_user
 
 router = APIRouter()
 
 # ---------------- ADD ADDRESS ----------------
-@router.post("/add", response_model=schemas.Address)
+@router.post("/", response_model=address_schemas.Address, status_code=status.HTTP_201_CREATED)
 def add_address(
-    address: schemas.AddressCreate,
+    address_in: address_schemas.AddressCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    new_address = models.Address(
-        user_id=current_user.id,
-        full_name=address.full_name,
-        phone_number=address.phone_number,
-        flat=address.flat,
-        area=address.area,
-        landmark=address.landmark,
-        city=address.city,
-        state=address.state,
-        pincode=address.pincode,
-        country=address.country,
-        is_default=address.is_default
-    )
-
-    if address.is_default:
-        db.query(models.Address).filter(
-            models.Address.user_id == current_user.id
+    """
+    Creates a new shipping address for the customer. 
+    If set as default, resets other addresses for this user.
+    """
+    # Logic to handle default address toggling
+    if address_in.is_default:
+        db.query(address_models.Address).filter(
+            address_models.Address.user_id == current_user.id
         ).update({"is_default": False})
+
+    new_address = address_models.Address(
+        **address_in.model_dump(),
+        user_id=current_user.id
+    )
 
     db.add(new_address)
     db.commit()
@@ -41,47 +40,48 @@ def add_address(
 
 
 # ---------------- GET MY ADDRESSES ----------------
-@router.get("/my-addresses", response_model=List[schemas.Address])
+@router.get("/", response_model=List[address_schemas.Address])
 def get_my_addresses(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    return db.query(models.Address).filter(
-        models.Address.user_id == current_user.id
+    """
+    Retrieves all saved addresses for the authenticated user.
+    """
+    return db.query(address_models.Address).filter(
+        address_models.Address.user_id == current_user.id
     ).all()
 
 
 # ---------------- UPDATE ADDRESS ----------------
-@router.put("/update/{address_id}", response_model=schemas.Address)
+@router.put("/{address_id}", response_model=address_schemas.Address)
 def update_address(
     address_id: int,
-    address: schemas.AddressCreate,
+    address_in: address_schemas.AddressCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    db_address = db.query(models.Address).filter(
-        models.Address.id == address_id,
-        models.Address.user_id == current_user.id
+    """
+    Updates an existing address. Validates ownership before applying changes.
+    """
+    db_address = db.query(address_models.Address).filter(
+        address_models.Address.id == address_id,
+        address_models.Address.user_id == current_user.id
     ).first()
 
     if not db_address:
-        raise HTTPException(status_code=404, detail="Address not found")
+        raise HTTPException(status_code=404, detail="Address record not found")
 
-    if address.is_default:
-        db.query(models.Address).filter(
-            models.Address.user_id == current_user.id
+    # If this address is being set to default, unset others
+    if address_in.is_default:
+        db.query(address_models.Address).filter(
+            address_models.Address.user_id == current_user.id
         ).update({"is_default": False})
 
-    db_address.full_name = address.full_name
-    db_address.phone_number = address.phone_number
-    db_address.flat = address.flat
-    db_address.area = address.area
-    db_address.landmark = address.landmark
-    db_address.city = address.city
-    db_address.state = address.state
-    db_address.pincode = address.pincode
-    db_address.country = address.country
-    db_address.is_default = address.is_default
+    # Update fields dynamically
+    update_data = address_in.model_dump()
+    for key, value in update_data.items():
+        setattr(db_address, key, value)
 
     db.commit()
     db.refresh(db_address)
@@ -89,21 +89,23 @@ def update_address(
 
 
 # ---------------- DELETE ADDRESS ----------------
-@router.delete("/delete/{address_id}")
+@router.delete("/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_address(
     address_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    db_address = db.query(models.Address).filter(
-        models.Address.id == address_id,
-        models.Address.user_id == current_user.id
+    """
+    Deletes a specific address from the user profile.
+    """
+    db_address = db.query(address_models.Address).filter(
+        address_models.Address.id == address_id,
+        address_models.Address.user_id == current_user.id
     ).first()
 
     if not db_address:
-        raise HTTPException(status_code=404, detail="Address not found")
+        raise HTTPException(status_code=404, detail="Address record not found")
 
     db.delete(db_address)
     db.commit()
-
-    return {"message": "Address deleted successfully"}
+    return None

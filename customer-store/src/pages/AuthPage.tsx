@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signupUser, loginUser } from "@/services/api";
-import { ArrowRight } from "lucide-react";
+import { authService } from "@/services";
+import { Loader2 } from "lucide-react";
 
 export const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -23,62 +23,60 @@ export const AuthPage: React.FC = () => {
         loginPayload.append("username", formData.email);
         loginPayload.append("password", formData.password);
 
-        const res = await loginUser(loginPayload);
+        const res = await authService.login(loginPayload);
 
         localStorage.setItem("token", res.data.access_token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
+
+        navigate(-1);
       } else {
-        await signupUser({
+        await authService.signup({
           email: formData.email,
           password: formData.password,
         });
 
         alert("Account created successfully. Please login.");
         setIsLogin(true);
-        setLoading(false);
-        return;
       }
-
-      navigate(-1);
     } catch (err: any) {
-      alert(err.response?.data?.detail || "Authentication failed");
+      const errorMessage =
+        err.response?.data?.detail ||
+        "Authentication failed. Please try again.";
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  // Mobile-friendly input styles integrated with theme variables
-  const inputClass =
-    "w-full bg-secondary border border-border rounded-xl px-4 py-3.5 text-base sm:text-sm text-foreground placeholder:text-muted-foreground focus:ring-4 focus:ring-yellow-500/30 outline-none transition-all appearance-none";
-
-  const labelClass =
-    "block text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-foreground mb-2 ml-1 opacity-80";
-
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 sm:p-6 overflow-x-hidden w-full transition-colors duration-300">
-      {/* AUTH CARD: Theme-aware background and borders */}
-      <div className="w-full max-w-105 bg-card border border-border rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl transition-all duration-300">
-        <header className="mb-8 sm:mb-10">
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tighter text-foreground uppercase italic">
-            {isLogin ? "Welcome Back" : "Create Account"}
-          </h2>
-          <p className="text-muted-foreground text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mt-2">
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4 transition-colors">
+      {/* CARD */}
+      <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-sm p-8">
+        {/* HEADER */}
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-semibold">
+            {isLogin ? "Sign in" : "Create account"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-2">
             {isLogin
-              ? "Login to continue"
-              : "Create account using Email & Password"}
+              ? "Enter your credentials to continue"
+              : "Get started with your new account"}
           </p>
-          <div className="h-1.5 w-12 bg-yellow-500 mt-4 rounded-full" />
-        </header>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+        {/* FORM */}
+        <form onSubmit={handleSubmit} className="space-y-5">
           {/* EMAIL */}
-          <div className="group">
-            <label className={labelClass}>Email Address</label>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Email address
+            </label>
             <input
               type="email"
-              placeholder="name@example.com"
               required
-              className={inputClass}
+              placeholder="you@example.com"
+              className="w-full px-4 py-3 border border-border rounded-lg text-sm bg-background focus:ring-2 focus:ring-yellow-500/40 focus:border-yellow-500 outline-none transition"
+              value={formData.email}
               onChange={(e) =>
                 setFormData({ ...formData, email: e.target.value })
               }
@@ -86,47 +84,63 @@ export const AuthPage: React.FC = () => {
           </div>
 
           {/* PASSWORD */}
-          <div className="group">
-            <label className={labelClass}>Password</label>
+          <div>
+            <label className="block text-sm font-medium mb-1">Password</label>
             <input
               type="password"
-              placeholder="••••••••"
               required
-              className={inputClass}
+              placeholder="Enter your password"
+              className="w-full px-4 py-3 border border-border rounded-lg text-sm bg-background focus:ring-2 focus:ring-yellow-500/40 focus:border-yellow-500 outline-none transition"
+              value={formData.password}
               onChange={(e) =>
                 setFormData({ ...formData, password: e.target.value })
               }
             />
           </div>
 
-          {/* SUBMIT BUTTON */}
+          {/* BUTTON */}
           <button
             type="submit"
             disabled={loading}
-            className="group w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xs uppercase tracking-[0.2em] py-4 sm:py-4.5 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-yellow-500/20 active:scale-95 disabled:opacity-50"
+            className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-medium py-3 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            {loading ? "Processing..." : isLogin ? "Login" : "Sign Up"}
-            {!loading && (
-              <ArrowRight
-                size={16}
-                className="transition-transform group-hover:translate-x-1"
-              />
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Processing...
+              </>
+            ) : isLogin ? (
+              "Sign in"
+            ) : (
+              "Create account"
             )}
           </button>
         </form>
 
-        {/* TOGGLE AUTH */}
-        <div className="mt-8 sm:mt-10 pt-6 sm:pt-8 border-t border-border text-center">
+        {/* DIVIDER */}
+        <div className="my-6 flex items-center">
+          <div className="flex-1 h-px bg-border" />
+          <span className="px-3 text-xs text-muted-foreground">OR</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+
+        {/* TOGGLE */}
+        <div className="text-center">
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-[10px] sm:text-xs font-black text-muted-foreground hover:text-yellow-500 dark:hover:text-yellow-400 uppercase tracking-widest transition-colors"
+            className="text-sm text-primary hover:underline"
           >
             {isLogin
-              ? "Don't have an account? Sign Up"
-              : "Already have an account? Login"}
+              ? "Create a new account"
+              : "Already have an account? Sign in"}
           </button>
         </div>
       </div>
+
+      {/* FOOTER */}
+      <p className="absolute bottom-5 text-xs text-muted-foreground">
+        © 2026 Your Company
+      </p>
     </div>
   );
 };

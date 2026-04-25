@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ShoppingCart,
@@ -8,16 +8,18 @@ import {
   Zap,
   Minus,
   Plus,
+  Loader2,
 } from "lucide-react";
-import { getProductDetails } from "@/services/api";
+// 1. Updated Service Import
+import { catalogService } from "@/services";
 import { useCartStore } from "@/store/useCartStore";
-import type { Product } from "@/types/index";
+import type { Product } from "@/types";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    minimumFractionDigits: 0, // Hides .00
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);
 
@@ -31,22 +33,27 @@ export const ProductDetailsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  useEffect(() => {
-    const fetchProduct = async () => {
-      try {
-        setLoading(true);
-        if (id) {
-          const response = await getProductDetails(Number(id));
-          setProduct(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch product:", error);
-      } finally {
-        setLoading(false);
+  /**
+   * Fetches specific product details.
+   * Matches backend: GET /api/customer/catalog/products/{id}
+   */
+  const fetchProduct = useCallback(async () => {
+    try {
+      setLoading(true);
+      if (id) {
+        const response = await catalogService.getProductDetails(Number(id));
+        setProduct(response.data);
       }
-    };
-    fetchProduct();
+    } catch (error) {
+      console.error("Failed to fetch product data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
 
   const handleBuyNow = () => {
     if (product) {
@@ -58,9 +65,9 @@ export const ProductDetailsPage: React.FC = () => {
   if (loading)
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-4">
-        <div className="w-10 h-10 border-2 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin" />
-        <div className="text-muted-foreground font-medium uppercase tracking-widest text-[10px]">
-          Loading Product Details...
+        <Loader2 className="w-10 h-10 text-yellow-500 animate-spin" />
+        <div className="text-muted-foreground font-black uppercase tracking-[0.4em] text-[10px]">
+          Decrypting_Product_Data
         </div>
       </div>
     );
@@ -68,82 +75,82 @@ export const ProductDetailsPage: React.FC = () => {
   if (!product)
     return (
       <div className="p-20 text-center">
-        <h2 className="text-2xl mb-4 font-bold text-foreground">
-          Product not found.
+        <h2 className="text-2xl mb-4 font-black uppercase italic tracking-tighter">
+          Product_Not_Found
         </h2>
         <button
           onClick={() => navigate("/")}
-          className="bg-muted px-6 py-2 rounded-full hover:bg-muted/80 transition-colors text-sm"
+          className="bg-muted px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-muted/80 transition-all"
         >
-          Return Home
+          Return to Hub
         </button>
       </div>
     );
 
+  // Financial Calculations
   const stock = product.stock_quantity;
   const isOut = stock <= 0;
   const images = product.images || [];
-  const gstRate = (product as any).gst_rate || 0;
+  const gstRate = (product as any).gst_rate || 18; // Default 18% if not provided
   const sellingPrice = product.selling_price || 0;
   const taxablePrice = sellingPrice / (1 + gstRate / 100);
   const gstAmount = sellingPrice - taxablePrice;
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Hide scrollbars globally for this component */}
+    <div className="min-h-screen bg-background pb-24 selection:bg-yellow-500/30">
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:py-10 py-6">
+      <div className="max-w-7xl mx-auto px-6 py-10">
         <button
           onClick={() => navigate(-1)}
-          className="group flex items-center gap-2 mb-8 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          className="group flex items-center gap-2 mb-10 text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground hover:text-yellow-500 transition-colors"
         >
           <ArrowLeft
-            size={18}
+            size={14}
             className="group-hover:-translate-x-1 transition-transform"
           />
-          Back to Store
+          Return_to_Inventory
         </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           {/* LEFT: IMAGE GALLERY */}
-          <div className="flex flex-col gap-4">
-            <div className="relative aspect-square overflow-hidden flex items-center justify-center p-6 sm:p-12">
+          <div className="flex flex-col gap-6">
+            <div className="relative aspect-square rounded-[3rem] bg-secondary/20 border border-border overflow-hidden flex items-center justify-center p-8">
               <img
                 src={
                   images[selectedImageIndex]?.media_url || "/placeholder.png"
                 }
                 alt={product.name}
-                className="max-w-full max-h-full object-contain transition-transform duration-500 hover:scale-105"
+                className="max-w-full max-h-full object-contain transition-transform duration-700 hover:scale-110"
               />
               {isOut && (
-                <div className="absolute inset-0 bg-background/40 backdrop-blur-sm flex items-center justify-center rounded-3xl">
-                  <span className="bg-destructive text-destructive-foreground px-6 py-2 rounded-full font-bold uppercase tracking-widest text-xs">
-                    Out of Stock
+                <div className="absolute inset-0 bg-background/60 backdrop-blur-md flex items-center justify-center">
+                  <span className="bg-destructive text-destructive-foreground px-8 py-3 rounded-2xl font-black uppercase tracking-[0.3em] text-xs -rotate-12 shadow-2xl">
+                    Void_Stock
                   </span>
                 </div>
               )}
             </div>
 
             {images.length > 1 && (
-              <div className="no-scrollbar flex gap-3 overflow-x-auto py-2 justify-center lg:justify-start">
+              <div className="no-scrollbar flex gap-4 overflow-x-auto py-2 justify-start">
                 {images.map((img, idx) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedImageIndex(idx)}
-                    className={`relative shrink-0 w-16 h-16 rounded-xl border-2 transition-all duration-200 overflow-hidden bg-muted/10 ${
+                    className={`relative shrink-0 w-20 h-20 rounded-2xl border-2 transition-all duration-300 overflow-hidden bg-card ${
                       selectedImageIndex === idx
-                        ? "border-yellow-500 ring-4 ring-yellow-500/10"
-                        : "border-transparent opacity-70 hover:opacity-100"
+                        ? "border-yellow-500 scale-105 shadow-xl shadow-yellow-500/10"
+                        : "border-border opacity-50 hover:opacity-100"
                     }`}
                   >
                     <img
                       src={img.media_url}
                       alt="thumb"
-                      className="w-full h-full object-contain p-1"
+                      className="w-full h-full object-contain p-2"
                     />
                   </button>
                 ))}
@@ -152,40 +159,44 @@ export const ProductDetailsPage: React.FC = () => {
           </div>
 
           {/* RIGHT: PRODUCT INFO */}
-          <div className="flex flex-col">
-            <div className="space-y-4 mb-8">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="bg-muted px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 border border-border/50">
-                  <Hash size={12} /> {product.sku}
+          <div className="flex flex-col py-2">
+            <div className="space-y-6 mb-10">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="bg-secondary/50 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 border border-border">
+                  <Hash size={12} className="text-yellow-500" /> {product.sku}
                 </span>
                 <span
-                  className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${isOut ? "text-red-500" : "text-green-500"}`}
+                  className={`text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${
+                    isOut ? "text-rose-500" : "text-emerald-500"
+                  }`}
                 >
                   <Package size={14} />
-                  {isOut ? "Out of Stock" : `In Stock (${stock} available)`}
+                  {isOut ? "Stock_Depleted" : `Active_Inventory (${stock})`}
                 </span>
               </div>
 
-              <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-foreground leading-[1.1]">
+              <h1 className="text-4xl sm:text-6xl font-black tracking-tighter text-foreground leading-none italic uppercase">
                 {product.name}
               </h1>
             </div>
 
             {/* PRICING CARD */}
-            <div className="bg-card border border-border/60 p-6 sm:p-8 rounded-[2rem] shadow-sm mb-8">
-              <div className="text-4xl sm:text-5xl font-black text-yellow-500 italic tracking-tighter">
+            <div className="bg-card/50 backdrop-blur-xl border-2 border-border p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden mb-10">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 blur-[80px]" />
+
+              <div className="text-5xl sm:text-7xl font-black text-yellow-500 italic tracking-tighter">
                 {formatCurrency(sellingPrice)}
               </div>
 
-              <div className="mt-6 pt-6 border-t border-border/40 space-y-2">
-                <div className="flex justify-between items-center text-xs uppercase tracking-wider font-bold text-muted-foreground/80">
-                  <span>Taxable Amount</span>
+              <div className="mt-8 pt-8 border-t border-border/50 space-y-3">
+                <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-black text-muted-foreground/60">
+                  <span>Base Valuation</span>
                   <span className="text-foreground">
                     {formatCurrency(taxablePrice)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center text-xs uppercase tracking-wider font-bold text-muted-foreground/80">
-                  <span>GST Amount ({gstRate}%)</span>
+                <div className="flex justify-between items-center text-[10px] uppercase tracking-widest font-black text-muted-foreground/60">
+                  <span>Statutory GST ({gstRate}%)</span>
                   <span className="text-foreground">
                     {formatCurrency(gstAmount)}
                   </span>
@@ -193,25 +204,28 @@ export const ProductDetailsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* ACTION BUTTONS */}
+            {/* ACTION INTERFACE */}
             {!isOut && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center border border-border rounded-2xl p-1 bg-muted/30">
+              <div className="space-y-8">
+                <div className="flex items-center gap-6">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Quantity_Select
+                  </label>
+                  <div className="flex items-center border-2 border-border rounded-2xl p-1.5 bg-secondary/30">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="w-11 h-11 flex items-center justify-center hover:bg-background rounded-xl transition-colors"
+                      className="w-12 h-12 flex items-center justify-center hover:bg-background rounded-xl transition-all active:scale-90"
                     >
-                      <Minus size={16} />
+                      <Minus size={18} />
                     </button>
-                    <span className="w-12 text-center font-bold text-lg">
+                    <span className="w-14 text-center font-black text-xl italic tabular-nums">
                       {quantity}
                     </span>
                     <button
                       onClick={() => setQuantity(Math.min(stock, quantity + 1))}
-                      className="w-11 h-11 flex items-center justify-center hover:bg-background rounded-xl transition-colors"
+                      className="w-12 h-12 flex items-center justify-center hover:bg-background rounded-xl transition-all active:scale-90"
                     >
-                      <Plus size={16} />
+                      <Plus size={18} />
                     </button>
                   </div>
                 </div>
@@ -221,30 +235,36 @@ export const ProductDetailsPage: React.FC = () => {
                     onClick={() => {
                       for (let i = 0; i < quantity; i++) addItem(product);
                     }}
-                    className="h-16 bg-yellow-500 hover:bg-yellow-400 text-black rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-yellow-500/20"
+                    className="h-20 bg-foreground text-background rounded-3xl font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl"
                   >
-                    <ShoppingCart size={20} /> Add to Cart
+                    <ShoppingCart size={20} /> Add_to_Cart
                   </button>
 
                   <button
                     onClick={handleBuyNow}
-                    className="h-16 bg-orange-500 hover:bg-orange-400 text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-orange-500/20"
+                    className="h-20 bg-yellow-500 text-black rounded-3xl font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 shadow-2xl shadow-yellow-500/20"
                   >
-                    <Zap size={20} /> Buy Now
+                    <Zap size={20} /> Deploy_Now
                   </button>
                 </div>
               </div>
             )}
 
-            {/* CLEAN DESCRIPTION */}
-            <div className="mt-12 space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
-                Description
-              </h3>
-              <div className="max-w-none prose prose-sm">
-                <p className="text-muted-foreground leading-relaxed text-base sm:text-lg font-medium">
+            {/* DESCRIPTION LOGS */}
+            <div className="mt-16 space-y-6">
+              <div className="flex items-center gap-4">
+                <div className="h-px flex-1 bg-border" />
+                <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/40">
+                  Data_Specifications
+                </h3>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="max-w-none">
+                <p className="text-muted-foreground leading-relaxed text-base sm:text-lg font-medium italic">
+                  "
                   {product.description ||
-                    "No detailed description available for this premium item."}
+                    "System protocol: No detailed specification provided for this logistics unit."}
+                  "
                 </p>
               </div>
             </div>

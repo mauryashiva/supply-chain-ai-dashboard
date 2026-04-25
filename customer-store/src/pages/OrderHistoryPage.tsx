@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { getMyOrders } from "@/services/api";
+import { useEffect, useState, useCallback } from "react";
+// 1. Updated Service Import
+import { orderService } from "@/services";
 import { useInventorySocket } from "@/hooks/useInventorySocket";
 import {
   Package,
@@ -12,48 +13,39 @@ import {
   Boxes,
   Navigation,
   Home,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Navbar } from "@/components/common/Navbar";
 import { cn } from "@/lib/utils";
-
-interface OrderItem {
-  quantity: number;
-  product: {
-    name: string;
-    selling_price: number;
-  };
-}
-
-interface Order {
-  id: number;
-  order_date: string;
-  status: string;
-  total_amount: number;
-  items: OrderItem[];
-}
+import type { Order } from "@/types"; // Use the standardized type
 
 export const OrderHistoryPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [openOrderId, setOpenOrderId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchOrders = async () => {
+  /**
+   * Fetches the user's specific order manifest.
+   * Matches backend: GET /api/customer/orders/my-orders
+   */
+  const fetchOrders = useCallback(async () => {
     try {
-      const res = await getMyOrders();
+      const res = await orderService.getMyOrders();
       setOrders(res.data);
     } catch (err) {
-      console.error("Failed to fetch orders", err);
+      console.error("Order retrieval failed:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
 
-  useInventorySocket(() => fetchOrders());
+  // Real-time updates: If an admin changes order status, the UI updates instantly
+  useInventorySocket(fetchOrders);
 
   const toggleOrder = (id: number) =>
     setOpenOrderId(openOrderId === id ? null : id);
@@ -61,80 +53,86 @@ export const OrderHistoryPage = () => {
   if (loading) {
     return (
       <div className="h-screen bg-background flex flex-col items-center justify-center text-foreground">
-        <div className="h-10 w-10 border-4 border-muted border-t-yellow-500 rounded-full animate-spin mb-4" />
-        <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">
-          Accessing_Logs
+        <Loader2 className="h-10 w-10 text-yellow-500 animate-spin mb-4" />
+        <p className="text-muted-foreground font-black uppercase tracking-[0.4em] text-[10px]">
+          Synchronizing_Logistics_Logs
         </p>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-background text-foreground font-sans flex flex-col overflow-hidden transition-colors duration-300">
+    <div className="h-screen bg-background text-foreground font-sans flex flex-col overflow-hidden transition-colors duration-300 selection:bg-yellow-500/30">
       <Navbar />
 
-      <header className="px-6 pt-8 pb-4 sm:pt-12 sm:pb-8 max-w-5xl mx-auto w-full shrink-0">
-        <h1 className="text-3xl sm:text-5xl font-black tracking-tighter uppercase mb-2">
-          Your Orders<span className="text-yellow-500">.</span>
+      <header className="px-6 pt-8 pb-4 sm:pt-16 sm:pb-10 max-w-5xl mx-auto w-full shrink-0">
+        <h1 className="text-4xl sm:text-6xl font-black tracking-tighter uppercase mb-2 italic">
+          Order_Manifest<span className="text-yellow-500">_</span>
         </h1>
-        <p className="text-foreground text-[10px] sm:text-xs font-black uppercase tracking-widest flex items-center gap-2">
-          <Clock className="h-3 w-3 text-yellow-600" /> System Live:{" "}
-          {format(new Date(), "HH:mm")}
-        </p>
+        <div className="flex items-center justify-between border-b-2 border-border pb-4">
+          <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.3em]">
+            History of Secured Deployments
+          </p>
+          <p className="text-foreground text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+            <Clock className="h-3 w-3 text-yellow-500" /> System Time:{" "}
+            {format(new Date(), "HH:mm")}
+          </p>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 pb-16 custom-scrollbar overflow-x-hidden">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 pb-24 custom-scrollbar overflow-x-hidden">
         <div className="max-w-5xl mx-auto w-full">
           {orders.length === 0 ? (
-            <div className="bg-secondary/30 border-2 border-border rounded-[2rem] p-12 flex flex-col items-center justify-center text-center">
-              <Package size={48} className="text-muted mb-6" />
-              <p className="text-lg font-black text-muted-foreground uppercase italic tracking-tighter">
-                No_Deployments_Found
+            <div className="bg-secondary/20 border-2 border-dashed border-border rounded-[3rem] py-32 flex flex-col items-center justify-center text-center opacity-50">
+              <Package size={64} className="text-muted-foreground mb-6" />
+              <p className="text-sm font-black text-muted-foreground uppercase tracking-[0.3em]">
+                Zero_Deployments_Found
               </p>
             </div>
           ) : (
-            <div className="space-y-4 sm:space-y-6">
+            <div className="space-y-6">
               {orders.map((order) => (
                 <div
                   key={order.id}
                   className={cn(
-                    "group overflow-hidden rounded-[2rem] sm:rounded-[2.5rem] border-2 transition-all duration-500 w-full",
+                    "group overflow-hidden rounded-[2.5rem] border-2 transition-all duration-500",
                     openOrderId === order.id
-                      ? "bg-yellow-500 border-foreground shadow-2xl scale-[1.01]"
-                      : "bg-secondary/50 border-border hover:border-yellow-500",
+                      ? "bg-yellow-500 border-foreground shadow-[0_20px_50px_rgba(234,179,8,0.3)] scale-[1.01]"
+                      : "bg-card border-border hover:border-yellow-500/50",
                   )}
                 >
+                  {/* SUMMARY SECTION */}
                   <div
                     onClick={() => toggleOrder(order.id)}
-                    className="p-5 sm:p-8 flex flex-col md:flex-row justify-between items-center cursor-pointer gap-4"
+                    className="p-6 sm:p-10 flex flex-col md:flex-row justify-between items-center cursor-pointer gap-6"
                   >
-                    <div className="flex items-center gap-4 w-full md:w-auto">
+                    <div className="flex items-center gap-6 w-full md:w-auto">
                       <div
                         className={cn(
-                          "h-12 w-12 sm:h-16 sm:w-16 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all border-2",
+                          "h-16 w-16 rounded-2xl flex items-center justify-center border-2 transition-all",
                           openOrderId === order.id
-                            ? "bg-foreground border-foreground text-yellow-500 shadow-xl"
-                            : "bg-background border-border text-foreground",
+                            ? "bg-black text-yellow-500 border-black shadow-lg"
+                            : "bg-secondary border-border text-foreground",
                         )}
                       >
-                        <Package className="h-6 w-6 sm:h-7 sm:w-7" />
+                        <Package className="h-8 w-8" />
                       </div>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5 sm:mb-1">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3">
                           <span
                             className={cn(
-                              "text-[10px] font-black font-mono",
+                              "text-[10px] font-black tracking-widest",
                               openOrderId === order.id
-                                ? "text-black"
+                                ? "text-black/60"
                                 : "text-muted-foreground",
                             )}
                           >
-                            #{order.id}
+                            MANIFEST_#{order.id.toString().padStart(4, "0")}
                           </span>
                           <span
                             className={cn(
-                              "px-2 py-0.5 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-wider",
+                              "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter",
                               getStatusBadge(
                                 order.status,
                                 openOrderId === order.id,
@@ -146,60 +144,54 @@ export const OrderHistoryPage = () => {
                         </div>
                         <p
                           className={cn(
-                            "text-base sm:text-xl font-black tracking-tight truncate",
+                            "text-2xl font-black italic tracking-tighter",
                             openOrderId === order.id
                               ? "text-black"
                               : "text-foreground",
                           )}
                         >
-                          {format(new Date(order.order_date), "dd MMM yyyy")}
+                          {format(new Date(order.order_date), "dd MMMM, yyyy")}
                         </p>
                       </div>
                     </div>
 
-                    <div
-                      className={cn(
-                        "flex items-center gap-4 sm:gap-10 w-full md:w-auto justify-between border-t md:border-t-0 pt-4 md:pt-0",
-                        openOrderId === order.id
-                          ? "border-black/10"
-                          : "border-border",
-                      )}
-                    >
+                    <div className="flex items-center gap-10 w-full md:w-auto justify-between border-t md:border-t-0 pt-6 md:pt-0 border-black/10">
                       <div className="md:text-right">
                         <p
                           className={cn(
-                            "text-[8px] sm:text-[10px] font-black uppercase tracking-widest mb-0.5",
+                            "text-[10px] font-black uppercase tracking-widest mb-1",
                             openOrderId === order.id
                               ? "text-black/60"
                               : "text-muted-foreground",
                           )}
                         >
-                          Grand Total
+                          Authorized_Value
                         </p>
                         <p
                           className={cn(
-                            "text-xl sm:text-3xl font-black italic tracking-tighter",
+                            "text-3xl font-black italic tracking-tighter",
                             openOrderId === order.id
                               ? "text-black"
-                              : "text-cyan-600 dark:text-cyan-400",
+                              : "text-cyan-500",
                           )}
                         >
-                          ₹{order.total_amount.toLocaleString()}
+                          ₹{order.total_amount.toLocaleString("en-IN")}
                         </p>
                       </div>
                       <div
                         className={cn(
-                          "h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center transition-all border shrink-0",
+                          "h-10 w-10 rounded-full flex items-center justify-center transition-all border shrink-0",
                           openOrderId === order.id
                             ? "bg-black text-yellow-500 rotate-180 border-black"
-                            : "bg-background text-foreground border-border",
+                            : "bg-secondary text-foreground border-border",
                         )}
                       >
-                        <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5" />
+                        <ChevronDown className="h-5 w-5" />
                       </div>
                     </div>
                   </div>
 
+                  {/* DETAILS SECTION */}
                   <div
                     className={cn(
                       "grid transition-all duration-500 ease-in-out",
@@ -209,33 +201,34 @@ export const OrderHistoryPage = () => {
                     )}
                   >
                     <div className="overflow-hidden">
-                      <div className="px-5 sm:px-10 pb-8 sm:pb-10 space-y-6">
-                        <div className="bg-background/40 rounded-[1.5rem] p-5 sm:p-8 space-y-4 border border-foreground/5">
-                          <div className="flex items-center gap-2 text-foreground border-b border-border pb-3">
-                            <ReceiptText className="h-4 w-4" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">
-                              Billing_Summary
+                      <div className="px-6 sm:px-10 pb-10 space-y-8">
+                        {/* ITEM LIST */}
+                        <div className="bg-background/30 backdrop-blur-md rounded-[2rem] p-6 sm:p-8 border border-black/5 space-y-6">
+                          <div className="flex items-center gap-2 border-b border-black/10 pb-4">
+                            <ReceiptText className="h-4 w-4 text-black/60" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-black/80">
+                              Product_Allocation_Logs
                             </span>
                           </div>
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             {order.items.map((item, index) => (
                               <div
                                 key={index}
-                                className="flex justify-between items-center gap-4"
+                                className="flex justify-between items-center group/item"
                               >
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs sm:text-base font-bold text-foreground uppercase tracking-tight truncate">
-                                    {item.product.name}
+                                <div className="space-y-0.5">
+                                  <p className="text-base font-black text-black uppercase tracking-tight">
+                                    {item.product_name || "Unknown Product"}
                                   </p>
-                                  <p className="text-[9px] sm:text-[11px] text-muted-foreground font-black uppercase font-mono">
-                                    QTY {item.quantity} × ₹
-                                    {item.product.selling_price.toLocaleString()}
+                                  <p className="text-[10px] text-black/60 font-bold uppercase tabular-nums">
+                                    QUANTITY: {item.quantity} × ₹
+                                    {item.unit_price?.toLocaleString() || "0"}
                                   </p>
                                 </div>
-                                <p className="text-sm sm:text-lg font-black text-foreground italic whitespace-nowrap">
+                                <p className="text-xl font-black text-black italic">
                                   ₹
                                   {(
-                                    item.product.selling_price * item.quantity
+                                    (item.unit_price || 0) * item.quantity
                                   ).toLocaleString()}
                                 </p>
                               </div>
@@ -243,16 +236,17 @@ export const OrderHistoryPage = () => {
                           </div>
                         </div>
 
-                        <div className="pt-2 w-full overflow-hidden">
-                          <div className="flex items-center justify-center gap-2 mb-8">
-                            <div className="h-px flex-1 bg-foreground/10" />
-                            <p className="text-[11px] font-black uppercase text-foreground tracking-[0.2em] whitespace-nowrap">
-                              Live_Manifest_Status
+                        {/* TRACKING STEPPER */}
+                        <div className="pt-4">
+                          <div className="flex items-center justify-center gap-4 mb-10">
+                            <div className="h-0.5 flex-1 bg-black/10" />
+                            <p className="text-[10px] font-black uppercase text-black tracking-[0.3em]">
+                              Logistic_Protocol_Status
                             </p>
-                            <div className="h-px flex-1 bg-foreground/10" />
+                            <div className="h-0.5 flex-1 bg-black/10" />
                           </div>
 
-                          <div className="overflow-x-auto pb-6 scrollbar-hide w-full">
+                          <div className="overflow-x-auto pb-4 scrollbar-hide">
                             <TrackingStepper currentStatus={order.status} />
                           </div>
                         </div>
@@ -269,8 +263,8 @@ export const OrderHistoryPage = () => {
       <style>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 20px; }
       `}</style>
     </div>
   );
@@ -282,11 +276,13 @@ const getStatusBadge = (status: string, isActive: boolean) => {
     case "Delivered":
       return "bg-emerald-500 text-white";
     case "Processing":
-      return "bg-blue-600 text-white";
+      return "bg-blue-500 text-white";
     case "Shipped":
-      return "bg-purple-600 text-white";
+      return "bg-purple-500 text-white";
+    case "In Transit":
+      return "bg-indigo-500 text-white";
     case "Cancelled":
-      return "bg-red-600 text-white";
+      return "bg-rose-500 text-white";
     default:
       return "bg-muted text-muted-foreground border border-border";
   }
@@ -304,15 +300,12 @@ const TrackingStepper = ({ currentStatus }: { currentStatus: string }) => {
   const currentIndex = steps.findIndex((s) => s.label === currentStatus);
 
   return (
-    <div className="relative flex justify-between items-start w-full px-8 min-w-150 sm:min-w-0">
-      {/* Background Rail */}
-      <div className="absolute top-6 left-12 right-12 h-1.5 bg-muted -translate-y-1/2 rounded-full z-0" />
-
-      {/* Active Progress Rail */}
+    <div className="relative flex justify-between items-start w-full px-8 min-w-175">
+      <div className="absolute top-7 left-14 right-14 h-1 bg-black/10 rounded-full z-0" />
       <div
-        className="absolute top-6 left-12 h-1.5 bg-foreground -translate-y-1/2 transition-all duration-1000 z-0 rounded-full"
+        className="absolute top-7 left-14 h-1 bg-black transition-all duration-1000 z-0 rounded-full"
         style={{
-          width: `calc(${(currentIndex / (steps.length - 1)) * 100}% - 24px)`,
+          width: `calc(${(currentIndex / (steps.length - 1)) * 100}% - 40px)`,
         }}
       />
 
@@ -324,39 +317,32 @@ const TrackingStepper = ({ currentStatus }: { currentStatus: string }) => {
         return (
           <div
             key={step.label}
-            className="relative z-10 flex flex-col items-center w-24 shrink-0"
+            className="relative z-10 flex flex-col items-center w-32 shrink-0"
           >
             <div
               className={cn(
-                "h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-500 border-4 shadow-xl",
+                "h-14 w-14 rounded-4xl flex items-center justify-center transition-all duration-700 border-4",
                 isActive
-                  ? "bg-foreground border-foreground text-background scale-110"
-                  : "bg-card border-card text-muted-foreground",
+                  ? "bg-black border-black text-white scale-110 shadow-xl"
+                  : "bg-white border-white text-muted-foreground",
               )}
             >
               {isCurrent ? (
-                <Icon size={20} className={cn(step.color, "animate-pulse")} />
+                <Icon size={24} className={cn(step.color, "animate-pulse")} />
               ) : isActive ? (
-                <CheckCircle2 size={20} className="text-yellow-500" />
+                <CheckCircle2 size={24} className="text-yellow-500" />
               ) : (
-                <Icon size={18} />
+                <Icon size={22} />
               )}
             </div>
-            <div className="mt-4 text-center">
-              <p
-                className={cn(
-                  "text-[11px] font-black uppercase tracking-tight",
-                  isActive ? "text-foreground" : "text-muted-foreground",
-                )}
-              >
-                {step.label}
-              </p>
-              {isCurrent && (
-                <span className="block text-[8px] font-black text-foreground uppercase tracking-widest mt-1 animate-bounce">
-                  Live
-                </span>
+            <p
+              className={cn(
+                "mt-4 text-[10px] font-black uppercase tracking-widest text-center",
+                isActive ? "text-black" : "text-muted-foreground",
               )}
-            </div>
+            >
+              {step.label}
+            </p>
           </div>
         );
       })}

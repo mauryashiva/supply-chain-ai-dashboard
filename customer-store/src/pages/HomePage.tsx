@@ -1,59 +1,68 @@
-import React, { useEffect, useState } from "react";
-import { getStorefrontProducts } from "@/services/api";
+import React, { useEffect, useState, useCallback } from "react";
+// 1. Updated Service Import
+import { catalogService } from "@/services";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Navbar } from "@/components/common/Navbar";
 import { useInventorySocket } from "@/hooks/useInventorySocket";
-import { useCartStore } from "@/store/useCartStore"; // 1. Import the store
+import { useCartStore } from "@/store/useCartStore";
+import type { Product } from "@/types"; // Import the standardized type
 
 export const HomePage: React.FC = () => {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 2. Get the syncPrices action from your store
+  // Get the syncPrices action from your store
   const syncPrices = useCartStore((state) => state.syncPrices);
 
-  const fetchProducts = async () => {
+  /**
+   * Fetches the latest catalog from the backend.
+   * Centralized logic ensures price sync across the whole app.
+   */
+  const fetchProducts = useCallback(async () => {
     try {
-      const response = await getStorefrontProducts();
+      // Matches backend: GET /api/customer/catalog/products
+      const response = await catalogService.getProducts();
       const latestData = response.data;
 
-      setProducts(latestData); // Updates the UI Grid
+      setProducts(latestData);
 
-      // 3. 🔥 REAL-TIME SYNC: Update the CartDrawer and Persisted Prices
-      // This ensures that if the admin changed the price from 3500 to 3700,
-      // the items already in the user's cart get the new price instantly.
+      // REAL-TIME SYNC: This handles price/stock updates for items
+      // already sitting in the user's cart drawer.
       syncPrices(latestData);
     } catch (error) {
       console.error("Failed to fetch products:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [syncPrices]);
 
-  // This hook listens to your Socket.io/WebSocket server
-  // When an admin updates ANY product, it triggers fetchProducts()
+  // WebSocket Hook: Triggers a refresh whenever the admin
+  // updates inventory on the backend.
   useInventorySocket(fetchProducts);
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [fetchProducts]);
 
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden transition-colors duration-300">
+    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden transition-colors duration-300 selection:bg-cyan-500/30">
       <Navbar />
 
       <main className="flex-1 overflow-y-auto custom-scrollbar pt-16 pb-24 md:pb-10">
         <div className="container mx-auto px-4 sm:px-6">
           {loading ? (
-            <div className="flex flex-col justify-center items-center h-[60vh]">
-              <div className="h-10 w-10 border-4 border-muted border-t-cyan-500 rounded-full animate-spin mb-4" />
-              <p className="text-cyan-600 dark:text-cyan-400 font-black uppercase tracking-[0.3em] text-[10px]">
-                Syncing_Inventory
+            <div className="flex flex-col justify-center items-center h-[70vh]">
+              <div className="relative">
+                <div className="h-12 w-12 border-2 border-muted rounded-xl animate-pulse" />
+                <div className="absolute inset-0 h-12 w-12 border-t-2 border-cyan-500 rounded-xl animate-spin" />
+              </div>
+              <p className="mt-6 text-cyan-600 dark:text-cyan-400 font-black uppercase tracking-[0.4em] text-[9px] animate-pulse">
+                Establishing_Secure_Sync
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-6">
-              {products.map((product: any) => (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-8">
+              {products.map((product) => (
                 <div key={product.id} className="flex justify-center">
                   <ProductCard product={product} />
                 </div>
@@ -61,15 +70,19 @@ export const HomePage: React.FC = () => {
             </div>
           )}
 
+          {/* EMPTY STATE */}
           {!loading && products.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-40 opacity-30">
-              <div className="h-20 w-20 border-2 border-dashed border-border rounded-full flex items-center justify-center mb-6">
-                <span className="text-4xl font-bold text-muted-foreground">
-                  ∅
+            <div className="flex flex-col items-center justify-center py-40">
+              <div className="h-24 w-24 border border-dashed border-border rounded-[2rem] flex items-center justify-center mb-8 rotate-12 opacity-50">
+                <span className="text-5xl font-black text-muted-foreground -rotate-12">
+                  !
                 </span>
               </div>
-              <p className="text-muted-foreground font-black uppercase tracking-[0.2em] text-sm">
-                No_Products_Found
+              <h2 className="text-muted-foreground font-black uppercase tracking-[0.3em] text-sm">
+                No_Inventory_Available
+              </h2>
+              <p className="text-[10px] text-muted-foreground/60 font-bold mt-2 tracking-widest uppercase">
+                Check back later for new arrivals
               </p>
             </div>
           )}
@@ -78,17 +91,17 @@ export const HomePage: React.FC = () => {
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
+          width: 5px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
           background: hsl(var(--border));
-          border-radius: 10px;
+          border-radius: 20px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: hsl(var(--ring));
+          background: hsl(var(--muted-foreground) / 0.5);
         }
         main {
           scrollbar-width: thin;

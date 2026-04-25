@@ -1,33 +1,40 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List
+from datetime import datetime, timezone
+
+# Modular Imports (Triple dot to reach app root)
 from ...database import get_db
-from ...models import models
-from ...schemas import schemas
+from ...models.shared import User
+from ...models.customer import address as address_models
+from ...models.admin import inventory as inventory_models
+from ...models.admin import order as order_models
+from ...schemas.admin import order as order_schemas
 from ..auth import get_current_user
 from ...core.websocket_manager import manager
-from datetime import datetime, timezone # Use modern timezone-aware dates
 
 router = APIRouter()
-
 
 # ================================
 # GET MY ORDERS
 # ================================
-@router.get("/my-orders", response_model=List[schemas.Order])
+@router.get("/my-orders", response_model=List[order_schemas.Order])
 async def get_my_orders(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
+    """
+    Retrieves the order history for the currently authenticated customer.
+    """
     return (
-        db.query(models.Order)
+        db.query(order_models.Order)
          .options(
-            joinedload(models.Order.items).joinedload(models.OrderItem.product),
-            joinedload(models.Order.user),
-            joinedload(models.Order.address)
+            joinedload(order_models.Order.items).joinedload(order_models.OrderItem.product),
+            joinedload(order_models.Order.user),
+            joinedload(order_models.Order.address)
         )
-        .filter(models.Order.user_id == current_user.id)
-        .order_by(models.Order.order_date.desc())
+        .filter(order_models.Order.user_id == current_user.id)
+        .order_by(order_models.Order.order_date.desc())
         .all()
     )
 
@@ -37,31 +44,30 @@ async def get_my_orders(
 # ================================
 @router.post("/place-order", status_code=status.HTTP_201_CREATED)
 async def place_order(
-    order_data: schemas.OrderCreate,
+    order_data: order_schemas.OrderCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
+    """
+    Handles customer checkout: Validates stock, extracts GST from inclusive pricing, 
+    snapshots product data, and updates inventory in real-time.
+    """
     try:
-
-        # ================================
-        # 1. VALIDATE ADDRESS
-        # ================================
-        address = db.query(models.Address).filter(
-            models.Address.id == order_data.address_id,
-            models.Address.user_id == current_user.id
+        # 1. Validate Delivery Address
+        address = db.query(address_models.Address).filter(
+            address_models.Address.id == order_data.address_id,
+            address_models.Address.user_id == current_user.id
         ).first()
 
         if not address:
-            raise HTTPException(status_code=404, detail="Address not found")
+            raise HTTPException(status_code=404, detail="Selected address not found")
 
         total_subtotal = 0.0
         total_gst_amount = 0.0
         total_amount = 0.0
 
-        # ================================
-        # 2. CREATE ORDER BASE
-        # ================================
-        new_order = models.Order(
+        # 2. Initialize Order Base
+        new_order = order_models.Order(
             user_id=current_user.id,
             address_id=address.id,
             order_date=datetime.now(timezone.utc),
@@ -72,100 +78,87 @@ async def place_order(
             shipping_address=f"{address.flat}, {address.area}, {address.city}, {address.state} - {address.pincode}",
 
             payment_method=order_data.payment_method,
-            payment_status=models.PaymentStatus.Pending,
+            payment_status=order_models.PaymentStatus.Pending,
             discount_value=order_data.discount_value or 0.0,
             discount_type=order_data.discount_type,
             shipping_charges=order_data.shipping_charges or 0.0,
-            status=models.OrderStatus.Pending
+            status=order_models.OrderStatus.Pending
         )
 
         db.add(new_order)
-        db.flush()
+        db.flush() # Get order ID without committing yet
 
-        # ================================
-        # 3. PROCESS ITEMS
-        # ================================
+        # 3. Process Order Items & Inventory Deduction
         for item in order_data.items:
-
+            # Use FOR UPDATE to prevent race conditions during high-traffic checkout
             product = (
-                db.query(models.Product)
-                .filter(models.Product.id == item.product_id)
-                .with_for_update()
+                db.query(inventory_models.Product)
+                .filter(inventory_models.Product.id == item.product_id)
+                .with_for_update() 
                 .first()
             )
 
             if not product:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Product {item.product_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
 
             if product.stock_quantity < item.quantity:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Insufficient stock for {product.name}"
+                    detail=f"Insufficient stock for {product.name}. Available: {product.stock_quantity}"
                 )
 
-            # Deduct stock
+            # Deduct from inventory
             product.stock_quantity -= item.quantity
 
-            price_including_gst = product.selling_price or 0.0
+            price_inc_gst = product.selling_price or 0.0
             gst_rate = product.gst_rate or 0.0
 
-            # ================================
-            # GST EXTRACTION (IMPORTANT)
-            # ================================
-            taxable_price = price_including_gst / (1 + gst_rate / 100) if gst_rate else price_including_gst
-            gst_amount = price_including_gst - taxable_price
+            # GST EXTRACTION Logic: Price is inclusive of GST
+            # Taxable = Price / (1 + Rate/100)
+            taxable_unit_price = price_inc_gst / (1 + gst_rate / 100) if gst_rate else price_inc_gst
+            gst_unit_amount = price_inc_gst - taxable_unit_price
 
-            item_subtotal = taxable_price * item.quantity
-            item_gst = gst_amount * item.quantity
-            item_total = price_including_gst * item.quantity
+            item_taxable_total = taxable_unit_price * item.quantity
+            item_gst_total = gst_unit_amount * item.quantity
+            item_final_total = price_inc_gst * item.quantity
 
-            total_subtotal += item_subtotal
-            total_gst_amount += item_gst
-            total_amount += item_total
+            total_subtotal += item_taxable_total
+            total_gst_amount += item_gst_total
+            total_amount += item_final_total
 
-            order_item = models.OrderItem(
+            # Create immutable snapshot of the product in OrderItem
+            order_item = order_models.OrderItem(
                 order_id=new_order.id,
                 product_id=product.id,
                 quantity=item.quantity,
-
-                  # Identity Snapshot
                 product_name=product.name,       
                 product_sku=product.sku,    
-                   # Financial Snapshot
-                unit_price=price_including_gst,
+                unit_price=price_inc_gst,
                 gst_rate=gst_rate,
-                gst_amount=round(item_gst, 2),
-                subtotal=round(item_subtotal, 2)
+                gst_amount=round(item_gst_total, 2),
+                subtotal=round(item_taxable_total, 2)
             )
 
             db.add(order_item)
 
-        # ================================
-        # 4. FINAL TOTAL CALCULATION
-        # ================================
-        new_order.subtotal = total_subtotal
-        new_order.total_gst = total_gst_amount
+        # 4. Final Financial Aggregation
+        new_order.subtotal = round(total_subtotal, 2)
+        new_order.total_gst = round(total_gst_amount, 2)
 
         final_total = total_amount + (order_data.shipping_charges or 0.0)
 
-        if order_data.discount_type == models.DiscountType.percentage:
+        # Apply discounts to the gross total
+        if order_data.discount_type == order_models.DiscountType.percentage:
             final_total -= total_subtotal * ((order_data.discount_value or 0) / 100)
         else:
             final_total -= (order_data.discount_value or 0)
 
-        new_order.total_amount = max(0, final_total)
+        new_order.total_amount = round(max(0, final_total), 2)
 
-        # ================================
-        # 5. COMMIT
-        # ================================
+        # 5. Finalize Transaction
         db.commit()
 
-        # ================================
-        # 6. REAL TIME SYNC
-        # ================================
+        # 6. Real-time Dashboard Sync
         await manager.broadcast("inventory_updated")
         await manager.broadcast("order_updated")
 
@@ -174,10 +167,10 @@ async def place_order(
             "order_id": new_order.id
         }
 
-    except HTTPException:
+    except HTTPException as he:
         db.rollback()
-        raise
-
+        raise he
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Checkout Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="An internal error occurred during checkout")

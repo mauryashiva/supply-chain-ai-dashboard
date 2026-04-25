@@ -2,12 +2,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useCartStore } from "@/store/useCartStore";
 import { Navbar } from "@/components/common/Navbar";
 import { useNavigate } from "react-router-dom";
+
+// Modular Service Imports
 import {
-  placeOrder,
-  getStorefrontProducts,
-  createRazorpayOrder,
-  verifyRazorpayPayment,
-} from "@/services/api";
+  orderService,
+  catalogService,
+  paymentService, // Ensure you add this to your services/index.ts
+} from "@/services";
+
 import { AddressSelector } from "@/components/checkout/AddressSelector";
 import { useInventorySocket } from "@/hooks/useInventorySocket";
 import {
@@ -15,11 +17,13 @@ import {
   Truck,
   CreditCard,
   ArrowRight,
-  PackageX,
   Circle,
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Types
+import type { OrderCreateRequest } from "@/types";
 
 type CheckoutPaymentMethod = "COD" | "RAZORPAY";
 
@@ -30,8 +34,12 @@ interface RazorpaySuccessPayload {
 }
 
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
-  const err = error as { response?: { data?: { detail?: string; message?: string } } };
-  return err?.response?.data?.detail || err?.response?.data?.message || fallback;
+  const err = error as {
+    response?: { data?: { detail?: string; message?: string } };
+  };
+  return (
+    err?.response?.data?.detail || err?.response?.data?.message || fallback
+  );
 };
 
 const loadRazorpayScript = async (): Promise<boolean> => {
@@ -57,9 +65,10 @@ export const CheckoutPage: React.FC = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<CheckoutPaymentMethod>("COD");
 
+  // Price validation using the new catalogService
   const validateAndSync = useCallback(async () => {
     try {
-      const response = await getStorefrontProducts();
+      const response = await catalogService.getProducts();
       if (response.data) {
         syncPrices(response.data);
       }
@@ -81,16 +90,19 @@ export const CheckoutPage: React.FC = () => {
   const hasOutOfStock = items.some((item) => item.stock_quantity <= 0);
   const totalAmount = getTotalPrice();
 
-  const buildOrderPayload = (paymentMethod: "COD" | "UPI") => ({
+  // Helper to build payload matching the Backend's OrderCreateRequest
+  const buildOrderPayload = (
+    paymentMethod: OrderCreateRequest["payment_method"],
+  ): OrderCreateRequest => ({
     address_id: selectedAddress.id,
     payment_method: paymentMethod,
-    discount_value: 0,
-    discount_type: "fixed",
-    shipping_charges: 0,
     items: items.map((item) => ({
       product_id: item.id,
       quantity: item.quantity,
     })),
+    discount_value: 0,
+    discount_type: "fixed",
+    shipping_charges: 0,
   });
 
   const processRazorpayPayment = async () => {
@@ -101,70 +113,86 @@ export const CheckoutPage: React.FC = () => {
       return false;
     }
 
-    const orderResponse = await createRazorpayOrder({
-      items: items.map((item) => ({
-        product_id: item.id,
-        quantity: item.quantity,
-      })),
-      discount_value: 0,
-      discount_type: "fixed",
-      shipping_charges: 0,
-    });
-
-    const { order_id, amount, currency, key_id } = orderResponse.data;
-
-    if (!order_id || !amount || !key_id) {
-      throw new Error("Invalid Razorpay order response");
-    }
-
-    return new Promise<boolean>((resolve) => {
-      const razorpay = new (window as any).Razorpay({
-        key: key_id,
-        amount,
-        currency: currency || "INR",
-        name: "SF-AI Store",
-        description: "Order payment",
-        order_id,
-        handler: async (response: RazorpaySuccessPayload) => {
-          try {
-            await verifyRazorpayPayment(response);
-            await placeOrder(buildOrderPayload("UPI"));
-            alert("Payment successful. Your order has been placed.");
-            clearCart();
-            navigate("/");
-            resolve(true);
-          } catch (error) {
-            console.error("Payment verification/order failed:", error);
-            alert("Payment was received but order placement failed. Please contact support.");
-            resolve(false);
-          }
-        },
-        prefill: {
-          name: selectedAddress?.full_name,
-          contact: selectedAddress?.phone_number,
-        },
-        theme: {
-          color: "#06b6d4",
-        },
-        modal: {
-          ondismiss: () => resolve(false),
-        },
+    try {
+      // 1. Create Razorpay Order on Backend
+      const orderResponse = await paymentService.createRazorpayOrder({
+        items: items.map((item) => ({
+          product_id: item.id,
+          quantity: item.quantity,
+        })),
+        discount_value: 0,
+        discount_type: "fixed",
+        shipping_charges: 0,
       });
 
-      razorpay.open();
-    });
+      const { order_id, amount, currency, key_id } = orderResponse.data;
+
+      if (!order_id || !amount || !key_id) {
+        throw new Error("Invalid Razorpay order configuration");
+      }
+
+      return new Promise<boolean>((resolve) => {
+        const razorpay = new (window as any).Razorpay({
+          key: key_id,
+          amount,
+          currency: currency || "INR",
+          name: "Supply Chain AI Store",
+          description: "Inventory Order Payment",
+          order_id,
+          handler: async (response: RazorpaySuccessPayload) => {
+            try {
+              // 2. Verify Payment
+              await paymentService.verifyPayment(response);
+
+              // 3. Finalize Order on Backend
+              await orderService.placeOrder(buildOrderPayload("UPI"));
+
+              alert("Order confirmed! Your inventory is secured.");
+              clearCart();
+              navigate("/order-history");
+              resolve(true);
+            } catch (error) {
+              console.error("Post-payment failure:", error);
+              alert(
+                "Payment verified but order failed. Please contact support with Order ID: " +
+                  order_id,
+              );
+              resolve(false);
+            }
+          },
+          prefill: {
+            name: selectedAddress?.full_name,
+            contact: selectedAddress?.phone_number,
+          },
+          theme: {
+            color: "#eab308", // Yellow-500 matching your UI
+          },
+          modal: {
+            ondismiss: () => {
+              setLoading(false);
+              resolve(false);
+            },
+          },
+        });
+
+        razorpay.open();
+      });
+    } catch (error) {
+      alert(getApiErrorMessage(error, "Razorpay initialization failed."));
+      return false;
+    }
   };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedAddress) {
-      alert("Please select or add a delivery address.");
+      alert("Select a shipping destination.");
       return;
     }
 
     if (hasOutOfStock) {
-      alert("Some items are out of stock. Please adjust your cart.");
+      alert("One or more items are out of stock.");
       return;
     }
 
@@ -172,185 +200,125 @@ export const CheckoutPage: React.FC = () => {
 
     try {
       if (selectedPaymentMethod === "COD") {
-        await placeOrder(buildOrderPayload("COD"));
-        alert("Success! Your order has been placed.");
+        await orderService.placeOrder(buildOrderPayload("COD"));
+        alert("Success! Order placed via COD.");
         clearCart();
-        navigate("/");
+        navigate("/order-history");
         return;
       }
 
       await processRazorpayPayment();
     } catch (error) {
-      console.error("Order failed:", error);
-      alert(getApiErrorMessage(error, "Failed to place order."));
+      console.error("Order process failed:", error);
+      alert(getApiErrorMessage(error, "Transaction failed."));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-yellow-500/30">
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-6 py-16">
-        {/* HEADER SECTION */}
         <div className="mb-12">
-          <h1 className="text-4xl font-black italic tracking-tighter uppercase mb-2">
-            Secure_Checkout
+          <h1 className="text-5xl font-black italic tracking-tighter uppercase mb-2 text-transparent bg-clip-text bg-linear-to-r from-foreground to-muted-foreground">
+            Checkout_Portal
           </h1>
-          <p className="text-muted-foreground text-sm tracking-widest font-bold">
-            STEP 02 / REVIEW & FINALIZE
+          <p className="text-muted-foreground text-xs tracking-[0.4em] font-black uppercase">
+            Order Verification Layer
           </p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-16">
-          {/* LEFT — ADDRESS & DETAILS */}
+          {/* LEFT COLUMN */}
           <div className="flex-1 space-y-12">
             <section className="space-y-6">
-              <div className="flex items-center gap-3 border-l-2 border-cyan-500 pl-4">
-                <Truck className="text-cyan-500 h-5 w-5" />
-                <h2 className="text-xl font-bold uppercase tracking-tight">
-                  Delivery_Address
+              <div className="flex items-center gap-3 border-l-4 border-yellow-500 pl-4">
+                <Truck className="text-yellow-500 h-6 w-6" />
+                <h2 className="text-2xl font-black uppercase tracking-tight italic">
+                  Logistic_Destination
                 </h2>
               </div>
-              <div className="bg-secondary/30 rounded-3xl border border-border p-2">
+              <div className="bg-secondary/20 rounded-[2rem] border border-border p-4">
                 <AddressSelector onSelect={setSelectedAddress} />
               </div>
             </section>
 
             <section className="space-y-6">
-              <div className="flex items-center gap-3 border-l-2 border-border pl-4">
-                <CreditCard className="text-muted-foreground h-5 w-5" />
-                <h2 className="text-xl font-bold uppercase tracking-tight">
-                  Payment_Method
+              <div className="flex items-center gap-3 border-l-4 border-foreground pl-4">
+                <CreditCard className="text-foreground h-6 w-6" />
+                <h2 className="text-2xl font-black uppercase tracking-tight italic">
+                  Payment_Protocol
                 </h2>
               </div>
-              <div className="space-y-4">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPaymentMethod("COD")}
-                  className={cn(
-                    "w-full bg-card border p-6 rounded-3xl flex items-center justify-between transition-all",
-                    selectedPaymentMethod === "COD"
-                      ? "border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.15)]"
-                      : "border-border hover:border-cyan-500/60",
-                  )}
-                >
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="h-10 w-10 bg-secondary rounded-xl flex items-center justify-center">
-                      <span className="text-xs font-black text-cyan-600 dark:text-cyan-400">
-                        COD
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Cash On Delivery</p>
-                      <p className="text-[10px] text-muted-foreground font-black tracking-widest uppercase">
-                        Pay when your order arrives
-                      </p>
-                    </div>
-                  </div>
-                  {selectedPaymentMethod === "COD" ? (
-                    <CheckCircle2 className="h-5 w-5 text-cyan-500" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedPaymentMethod("RAZORPAY")}
-                  className={cn(
-                    "w-full bg-card border p-6 rounded-3xl flex items-center justify-between transition-all",
-                    selectedPaymentMethod === "RAZORPAY"
-                      ? "border-cyan-500 shadow-[0_0_20px_rgba(6,182,212,0.15)]"
-                      : "border-border hover:border-cyan-500/60",
-                  )}
-                >
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="h-10 min-w-10 px-2 bg-secondary rounded-xl flex items-center justify-center">
-                      <span className="text-[10px] font-black text-cyan-600 dark:text-cyan-400 tracking-wide">
-                        RP
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm">Razorpay (UPI/Card/NetBanking)</p>
-                      <p className="text-[10px] text-muted-foreground font-black tracking-widest uppercase">
-                        Pay now with secure checkout
-                      </p>
-                    </div>
-                  </div>
-                  {selectedPaymentMethod === "RAZORPAY" ? (
-                    <CheckCircle2 className="h-5 w-5 text-cyan-500" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <PaymentOption
+                  id="COD"
+                  title="Cash on Delivery"
+                  desc="Pay at door"
+                  selected={selectedPaymentMethod}
+                  onSelect={setSelectedPaymentMethod}
+                />
+                <PaymentOption
+                  id="RAZORPAY"
+                  title="Digital Gateway"
+                  desc="UPI / Cards / Net"
+                  selected={selectedPaymentMethod}
+                  onSelect={setSelectedPaymentMethod}
+                />
               </div>
             </section>
           </div>
 
-          {/* RIGHT — ORDER SUMMARY */}
+          {/* RIGHT COLUMN — INVOICE */}
           <div className="w-full lg:w-100">
-            <div className="bg-card/80 backdrop-blur-xl border border-border rounded-[2.5rem] p-8 sticky top-28 shadow-2xl transition-all">
-              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground mb-8 border-b border-border pb-4">
-                Order_Invoice
+            <div className="bg-card/50 backdrop-blur-2xl border-2 border-border rounded-[3rem] p-8 sticky top-28 shadow-2xl overflow-hidden">
+              {/* Decorative Element */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 blur-[80px] -z-10" />
+
+              <h3 className="text-[10px] font-black uppercase tracking-[0.5em] text-muted-foreground mb-8 text-center">
+                Review_Summary
               </h3>
 
-              <div className="space-y-6 max-h-87.5 overflow-y-auto pr-2 no-scrollbar">
+              <div className="space-y-6 max-h-75 overflow-y-auto pr-2 custom-scrollbar">
                 {items.map((item) => (
-                  <div key={item.id} className="group relative">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold text-foreground line-clamp-1">
-                          {item.name}
-                        </p>
-                        <p className="text-[10px] font-black text-muted-foreground uppercase italic">
-                          Qty: {item.quantity} × ₹
-                          {item.selling_price.toLocaleString("en-IN")}
-                        </p>
-                      </div>
-                      <span className="text-sm font-black text-foreground italic">
-                        ₹
-                        {(item.selling_price * item.quantity).toLocaleString(
-                          "en-IN",
-                        )}
-                      </span>
+                  <div
+                    key={item.id}
+                    className="flex justify-between items-center group"
+                  >
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-bold truncate max-w-45">
+                        {item.name}
+                      </p>
+                      <p className="text-[10px] font-black text-muted-foreground uppercase">
+                        {item.quantity} × ₹{item.selling_price.toLocaleString()}
+                      </p>
                     </div>
-
-                    {item.stock_quantity <= 0 && (
-                      <div className="mt-2 flex items-center gap-2 text-destructive">
-                        <PackageX size={12} />
-                        <span className="text-[10px] font-bold uppercase">
-                          Critical_Out_of_Stock
-                        </span>
-                      </div>
-                    )}
+                    <span className="text-sm font-black italic">
+                      ₹{(item.selling_price * item.quantity).toLocaleString()}
+                    </span>
                   </div>
                 ))}
               </div>
 
-              {/* TOTALS AREA */}
-              <div className="mt-10 pt-8 border-t border-border space-y-4">
-                <div className="flex justify-between text-[11px] font-black text-muted-foreground uppercase tracking-widest">
-                  <span>Shipping</span>
-                  <span className="text-cyan-600 dark:text-cyan-400">
-                    Calculated_at_Door
-                  </span>
+              <div className="mt-10 pt-8 border-t-2 border-dashed border-border space-y-4">
+                <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase">
+                  <span>Logistic Fee</span>
+                  <span className="text-green-500">Free_Tier</span>
                 </div>
 
                 <div className="flex justify-between items-end">
-                  <span className="text-sm font-black text-muted-foreground uppercase tracking-tighter italic">
-                    Total_Payable
+                  <span className="text-xs font-black text-muted-foreground uppercase italic">
+                    Total
                   </span>
-                  <div className="text-right">
-                    <span className="block text-3xl font-black text-foreground italic tracking-tighter">
-                      ₹{totalAmount.toLocaleString("en-IN")}
-                    </span>
-                  </div>
+                  <span className="text-4xl font-black italic tracking-tighter">
+                    ₹{totalAmount.toLocaleString("en-IN")}
+                  </span>
                 </div>
               </div>
 
-              {/* HIGH IMPACT CTA */}
               <button
                 onClick={handlePlaceOrder}
                 disabled={
@@ -360,31 +328,27 @@ export const CheckoutPage: React.FC = () => {
                   !selectedAddress
                 }
                 className={cn(
-                  "mt-8 group/btn relative w-full h-16 flex items-center justify-center overflow-hidden rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all duration-500",
+                  "mt-8 w-full h-16 flex items-center justify-center rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all relative overflow-hidden",
                   hasOutOfStock || !selectedAddress || items.length === 0
-                    ? "bg-muted text-muted-foreground cursor-not-allowed border border-border"
-                    : "bg-yellow-500 text-black hover:bg-yellow-400 hover:shadow-[0_0_40px_rgba(234,179,8,0.2)] active:scale-95",
+                    ? "bg-muted text-muted-foreground"
+                    : "bg-foreground text-background hover:scale-[1.02] active:scale-95 shadow-xl",
                 )}
               >
-                <span className="relative z-10 flex items-center gap-3">
-                  {loading ? (
-                    <div className="h-5 w-5 border-2 border-black border-t-transparent animate-spin rounded-full" />
-                  ) : hasOutOfStock ? (
-                    "Inventory Error"
-                  ) : !selectedAddress ? (
-                    "Select Address"
-                  ) : (
-                    <>
-                      {selectedPaymentMethod === "COD" ? "Place Order" : "Pay Securely"}
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
-                    </>
-                  )}
-                </span>
+                {loading ? (
+                  <div className="h-5 w-5 border-2 border-background border-t-transparent animate-spin rounded-full" />
+                ) : (
+                  <span className="flex items-center gap-2">
+                    {selectedPaymentMethod === "COD"
+                      ? "Authorize Order"
+                      : "Initialize Payment"}
+                    <ArrowRight size={16} />
+                  </span>
+                )}
               </button>
 
-              <div className="mt-6 flex items-center justify-center gap-2 text-[10px] font-black text-muted-foreground uppercase">
+              <div className="mt-6 flex items-center justify-center gap-2 text-[9px] font-black text-muted-foreground uppercase tracking-widest">
                 <ShieldCheck className="h-3 w-3" />
-                End-to-End Secure Processing
+                Encrypted Transaction
               </div>
             </div>
           </div>
@@ -393,3 +357,29 @@ export const CheckoutPage: React.FC = () => {
     </div>
   );
 };
+
+// Sub-component for Payment Options
+const PaymentOption = ({ id, title, desc, selected, onSelect }: any) => (
+  <button
+    type="button"
+    onClick={() => onSelect(id)}
+    className={cn(
+      "p-6 rounded-3xl border-2 transition-all text-left flex items-center justify-between",
+      selected === id
+        ? "border-yellow-500 bg-yellow-500/5 shadow-lg"
+        : "border-border hover:border-muted-foreground/30 bg-card",
+    )}
+  >
+    <div>
+      <p className="font-bold text-sm">{title}</p>
+      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-tight">
+        {desc}
+      </p>
+    </div>
+    {selected === id ? (
+      <CheckCircle2 className="text-yellow-500" size={20} />
+    ) : (
+      <Circle className="text-muted" size={20} />
+    )}
+  </button>
+);

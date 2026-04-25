@@ -2,20 +2,21 @@ import json
 import os
 import urllib.request
 from urllib.error import HTTPError
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import jwt, JWTError
 
+# Modular Imports
 from ..database import get_db
-from ..models import models
-from ..schemas import schemas
+from ..models import shared as shared_models
+from ..schemas.shared import user as user_schemas
 from ..core import security
 from ..core.security import SECRET_KEY, ALGORITHM
 
 router = APIRouter()
-
 
 def _validate_supabase_token(token: str):
     """Validate a Supabase access token via Supabase /auth/v1/user endpoint."""
@@ -40,34 +41,34 @@ def _validate_supabase_token(token: str):
                 return data
             if isinstance(data, dict) and "data" in data and data["data"].get("id"):
                 return data["data"]
-    except HTTPError as exc:
-        return None
-    except Exception:
+    except (HTTPError, Exception):
         return None
 
     return None
 
 
 # =========================
-# SIGNUP (Email + Password only)
+# SIGNUP
 # =========================
-@router.post("/signup", response_model=schemas.User)
-def signup(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+@router.post("/signup", response_model=user_schemas.User)
+def signup(user_in: user_schemas.UserCreate, db: Session = Depends(get_db)):
     """
-    Simple signup → Only Email + Password required.
+    Registers a new user (default role: user).
     """
-
-    existing_user = db.query(models.User).filter(
-        models.User.email == user_in.email
+    existing_user = db.query(shared_models.User).filter(
+        shared_models.User.email == user_in.email
     ).first()
 
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Email already registered"
+        )
 
-    new_user = models.User(
+    new_user = shared_models.User(
         email=user_in.email,
-        hashed_password=security.hash_password(user_in.password),
-        role="user"
+        hashed_password=security.get_password_hash(user_in.password),
+        role=shared_models.UserRole.user
     )
 
     db.add(new_user)
@@ -86,20 +87,21 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
     """
-    Login using Email + Password
+    OAuth2 compatible token login.
     """
-
-    user = db.query(models.User).filter(
-        models.User.email == form_data.username
+    user = db.query(shared_models.User).filter(
+        shared_models.User.email == form_data.username
     ).first()
 
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid email or password")
+    if not user or not security.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    if not security.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Invalid email or password")
-
-    access_token = security.create_access_token(user.id)
+    # Create local JWT token
+    access_token = security.create_access_token(data={"sub": str(user.id)})
 
     return {
         "access_token": access_token,
@@ -116,7 +118,8 @@ def login(
 # AUTH DEPENDENCY
 # =========================
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+# Updated to match the prefixing logic used in main.py
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 
 async def get_current_user(
@@ -124,43 +127,41 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme)
 ):
     """
-    Extract user from JWT token
+    Global dependency to extract user from local JWT or Supabase fallback.
     """
-
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # 1) Try backend token first (local app JWT)
-    user_id = None
+    # 1) Attempt Local JWT Decode
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-
-        if user_id is not None:
-            user = db.query(models.User).filter(models.User.id == int(user_id)).first()
+        user_id: str = payload.get("sub")
+        if user_id:
+            user = db.query(shared_models.User).filter(shared_models.User.id == int(user_id)).first()
             if user:
                 return user
-    except JWTError:
+    except (JWTError, ValueError):
         pass
 
-    # 2) Try Supabase token as a fallback (when frontend uses Supabase auth)
+    # 2) Attempt Supabase Token Validation (Fallback)
     supabase_user = _validate_supabase_token(token)
-    if supabase_user is not None:
+    if supabase_user:
         email = supabase_user.get("email")
         if not email:
             raise credentials_exception
 
-        user = db.query(models.User).filter(models.User.email == email).first()
+        user = db.query(shared_models.User).filter(shared_models.User.email == email).first()
+        
+        # Auto-provision local record if Supabase authenticated but local record is missing
         if user is None:
-            # Create a local backend user record to satisfy protected endpoints
-            # Password is random because login is handled by Supabase.
-            random_password = os.urandom(24).hex()
-            user = models.User(
+            random_pwd = os.urandom(24).hex()
+            user = shared_models.User(
                 email=email,
-                hashed_password=security.hash_password(random_password),
-                role="user",
+                hashed_password=security.get_password_hash(random_pwd),
+                role=shared_models.UserRole.user,
             )
             db.add(user)
             db.commit()
