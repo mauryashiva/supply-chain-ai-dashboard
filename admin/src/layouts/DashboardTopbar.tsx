@@ -22,16 +22,14 @@ export const DashboardTopbar: React.FC<DashboardTopbarProps> = ({
 
       <div className="flex-1" />
 
-      {/* 🛠️ IMPROVED: Centralized Theme Toggle with System Support */}
+      {/* This component now handles the theme internally */}
       <ThemeToggle />
 
-      {/* NOTIFICATIONS */}
       <button className="p-2 relative rounded-lg border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all">
         <Bell className="h-5 w-5 text-gray-600 dark:text-zinc-400" />
         <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-red-500 rounded-full border-2 border-white dark:border-zinc-900" />
       </button>
 
-      {/* SETTINGS */}
       <button
         onClick={() => setIsSettingsModalOpen(true)}
         className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"

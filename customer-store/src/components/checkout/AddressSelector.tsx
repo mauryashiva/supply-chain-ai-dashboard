@@ -44,7 +44,7 @@ export const AddressSelector = ({ onSelect }: AddressSelectorProps) => {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
 
   const emptyForm: AddressCreate = {
     full_name: "",
