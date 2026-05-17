@@ -1,3 +1,4 @@
+import React from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -5,11 +6,13 @@ import {
   Navigate,
 } from "react-router-dom";
 
-import { HomePage } from "./pages/HomePage";
+import { MobileAppShell } from "./components/layout/MobileAppShell";
+import { MobileDiscoveryPage } from "./pages/customer/MobileDiscoveryPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OrderHistoryPage } from "./pages/OrderHistoryPage";
-import { ProductDetailsPage } from "./pages/ProductDetailsPage"; // Added
+import { ProductDetailsPage } from "./pages/ProductDetailsPage";
+import { GlobalProvider } from "./context/GlobalContext";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -19,41 +22,45 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        {/* Home */}
-        <Route path="/" element={<HomePage />} />
+    <GlobalProvider>
+      <Router>
+        <MobileAppShell>
+          <Routes>
+            {/* Mobile Storefront Home */}
+            <Route path="/" element={<MobileDiscoveryPage />} />
 
-        {/* Product Details */}
-        <Route path="/product/:id" element={<ProductDetailsPage />} />
+            {/* Product Details */}
+            <Route path="/product/:id" element={<ProductDetailsPage />} />
 
-        {/* Auth */}
-        <Route path="/auth" element={<AuthPage />} />
+            {/* Auth */}
+            <Route path="/auth" element={<AuthPage />} />
 
-        {/* Order History - Protected */}
-        <Route
-          path="/my-orders"
-          element={
-            <ProtectedRoute>
-              <OrderHistoryPage />
-            </ProtectedRoute>
-          }
-        />
+            {/* Order History - Protected */}
+            <Route
+              path="/my-orders"
+              element={
+                <ProtectedRoute>
+                  <OrderHistoryPage />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Checkout - Protected */}
-        <Route
-          path="/checkout"
-          element={
-            <ProtectedRoute>
-              <CheckoutPage />
-            </ProtectedRoute>
-          }
-        />
+            {/* Checkout - Protected */}
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Optional: Catch all route */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+            {/* Optional: Catch all route */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </MobileAppShell>
+      </Router>
+    </GlobalProvider>
   );
 }
 
