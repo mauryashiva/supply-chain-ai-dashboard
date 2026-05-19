@@ -1,18 +1,18 @@
 import React from 'react';
 import { Search, Home, LayoutGrid, Sparkles, ShoppingCart, User, ArrowLeft, Bell } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useGlobalState } from '../../context/useGlobalState';
+import { useCartStore } from '../../store/useCartStore';
 
 interface MobileAppShellProps {
   children: React.ReactNode;
 }
 
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
-  const { cart } = useGlobalState();
+  const items = useCartStore((state) => state.items);
   const location = useLocation();
   const navigate = useNavigate();
 
-  const totalCartItems = cart.items.reduce((total, item) => total + item.quantity, 0);
+  const totalCartItems = items.reduce((total, item) => total + item.quantity, 0);
 
   const getDockIconColor = (path: string) => {
     return location.pathname === path ? 'text-blue-600' : 'text-gray-400';

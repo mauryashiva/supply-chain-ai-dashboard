@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Check } from 'lucide-react';
 import type { Product } from '../../types';
-import { useGlobalState } from '../../context/useGlobalState';
+import { useCartStore } from '../../store/useCartStore';
 
 interface VariantBottomSheetProps {
   product: Product | null;
@@ -20,7 +20,7 @@ export const VariantBottomSheet: React.FC<VariantBottomSheetProps> = ({ product,
   const [isAnimating, setIsAnimating] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string>('M');
   const [selectedConfig, setSelectedConfig] = useState<string>('standard');
-  const { addToCart } = useGlobalState();
+  const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
     if (isOpen) {
@@ -39,12 +39,7 @@ export const VariantBottomSheet: React.FC<VariantBottomSheetProps> = ({ product,
 
   const handleAddToCart = () => {
     if (product) {
-      addToCart({
-        product,
-        quantity: 1,
-        variant: selectedConfig,
-        size: selectedSize,
-      });
+      addItem(product);
       onClose();
     }
   };

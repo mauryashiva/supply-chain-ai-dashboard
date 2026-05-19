@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { catalogService } from '../../services';
+import { useInventorySocket } from '../../hooks/useInventorySocket';
+import { useCartStore } from '../../store/useCartStore';
 import { MobileAiAssistant } from '../../components/customer/MobileAiAssistant';
 import { VariantBottomSheet } from '../../components/customer/VariantBottomSheet';
 import type { Product } from '../../types';
 import { Timer, Zap, ChevronRight, Plus } from 'lucide-react';
 
-// Mock Data
+// Mock Data for non-dynamic elements
 const HERO_BANNERS = [
   { id: 1, title: 'Summer Collection', subtitle: 'Up to 50% Off', bg: 'bg-gradient-to-r from-orange-400 to-rose-400' },
   { id: 2, title: 'New Arrivals', subtitle: 'Explore the latest trends', bg: 'bg-gradient-to-r from-blue-400 to-indigo-500' },
@@ -20,53 +23,33 @@ const CATEGORIES = [
   { id: '6', name: 'Toys' },
 ];
 
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    sku: 'p1',
-    name: 'Wireless Noise-Cancelling Headphones Pro',
-    description: 'High quality sound with active noise cancellation.',
-    selling_price: 12999,
-    category: 'Electronics',
-    images: [{ id: 1, media_type: 'image', media_url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&q=80' }],
-    stock_quantity: 15,
-  },
-  {
-    id: 2,
-    sku: 'p2',
-    name: 'Minimalist Cotton T-Shirt',
-    description: '100% pure cotton, highly breathable.',
-    selling_price: 899,
-    category: 'Fashion',
-    images: [{ id: 2, media_type: 'image', media_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80' }],
-    stock_quantity: 5,
-  },
-  {
-    id: 3,
-    sku: 'p3',
-    name: 'Smart Fitness Watch Series 6',
-    description: 'Track your health and activities all day.',
-    selling_price: 4500,
-    category: 'Electronics',
-    images: [{ id: 3, media_type: 'image', media_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&q=80' }],
-    stock_quantity: 50,
-  },
-  {
-    id: 4,
-    sku: 'p4',
-    name: 'Classic Leather Sneakers',
-    description: 'Comfortable everyday wear with durable leather.',
-    selling_price: 2499,
-    category: 'Fashion',
-    images: [{ id: 4, media_type: 'image', media_url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80' }],
-    stock_quantity: 2,
-  },
-];
-
 export const MobileDiscoveryPage: React.FC = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState({ hours: 12, minutes: 45, seconds: 30 });
+
+  const syncPrices = useCartStore((state) => state.syncPrices);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await catalogService.getProducts();
+      const latestData = response.data;
+      setProducts(latestData);
+      syncPrices(latestData);
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [syncPrices]);
+
+  useInventorySocket(fetchProducts);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   // Native Countdown Timer Simulation
   useEffect(() => {
@@ -161,7 +144,12 @@ export const MobileDiscoveryPage: React.FC = () => {
 
         {/* Dynamic Dual-Column Product Feed */}
         <div className="grid grid-cols-2 gap-3">
-          {MOCK_PRODUCTS.map((product) => (
+          {loading ? (
+            <div className="col-span-2 flex justify-center py-10">
+              <div className="h-8 w-8 border-2 border-gray-300 rounded-full border-t-blue-500 animate-spin"></div>
+            </div>
+          ) : (
+            products.map((product) => (
             <div key={product.id} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 relative group overflow-hidden">
               {/* Automated Inventory Badges */}
               {product.stock_quantity < 10 && (
@@ -199,7 +187,8 @@ export const MobileDiscoveryPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 

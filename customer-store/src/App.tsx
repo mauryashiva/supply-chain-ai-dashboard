@@ -12,7 +12,6 @@ import { CheckoutPage } from "./pages/CheckoutPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OrderHistoryPage } from "./pages/OrderHistoryPage";
 import { ProductDetailsPage } from "./pages/ProductDetailsPage";
-import { GlobalProvider } from "./context/GlobalContext";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -22,12 +21,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   return (
-    <GlobalProvider>
-      <Router>
-        <MobileAppShell>
-          <Routes>
-            {/* Mobile Storefront Home */}
-            <Route path="/" element={<MobileDiscoveryPage />} />
+    <Router>
+      <MobileAppShell>
+        <Routes>
+          {/* Mobile Storefront Home */}
+          <Route path="/" element={<MobileDiscoveryPage />} />
 
             {/* Product Details */}
             <Route path="/product/:id" element={<ProductDetailsPage />} />
@@ -60,7 +58,6 @@ function App() {
           </Routes>
         </MobileAppShell>
       </Router>
-    </GlobalProvider>
   );
 }
 
