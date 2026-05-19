@@ -103,12 +103,24 @@ export const CartDrawer = () => {
                         {item.name}
                       </h4>
                       <button
-                        onClick={() => deleteProduct(item.id)}
+                        onClick={() => deleteProduct(item.cartItemId)}
                         className="text-muted-foreground hover:text-destructive transition-colors p-1"
                       >
                         <Trash2 size={14} />
                       </button>
                     </div>
+
+                    {item.selectedVariant && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+                        Variant: {
+                          [item.selectedVariant.ram ? `${item.selectedVariant.ram} RAM` : null,
+                           item.selectedVariant.storage ? `${item.selectedVariant.storage} Storage` : null,
+                           item.selectedVariant.color,
+                           item.selectedVariant.screen_size ? `${item.selectedVariant.screen_size}"` : null]
+                           .filter(Boolean).join(" • ") || item.selectedVariant.sku
+                        }
+                      </div>
+                    )}
 
                     <p className="text-[11px] font-bold text-muted-foreground mt-1">
                       {item.quantity} × ₹
@@ -126,8 +138,8 @@ export const CartDrawer = () => {
                         <button
                           onClick={() =>
                             item.quantity === 1
-                              ? deleteProduct(item.id)
-                              : updateQuantity(item.id, item.quantity - 1)
+                              ? deleteProduct(item.cartItemId)
+                              : updateQuantity(item.cartItemId, item.quantity - 1)
                           }
                           className="h-7 w-7 flex items-center justify-center hover:bg-muted text-foreground transition-colors"
                         >
@@ -143,7 +155,7 @@ export const CartDrawer = () => {
                         <button
                           disabled={item.quantity >= item.stock_quantity}
                           onClick={() =>
-                            updateQuantity(item.id, item.quantity + 1)
+                            updateQuantity(item.cartItemId, item.quantity + 1)
                           }
                           className="h-7 w-7 flex items-center justify-center hover:bg-muted text-foreground transition-colors disabled:opacity-20"
                         >

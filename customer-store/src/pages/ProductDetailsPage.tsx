@@ -13,7 +13,8 @@ import {
 // 1. Updated Service Import
 import { catalogService } from "@/services";
 import { useCartStore } from "@/store/useCartStore";
-import type { Product } from "@/types";
+import type { Product, ProductVariant } from "@/types";
+import { ProductCard } from "@/components/product/ProductCard";
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
@@ -29,9 +30,11 @@ export const ProductDetailsPage: React.FC = () => {
   const addItem = useCartStore((state) => state.addItem);
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   /**
    * Fetches specific product details.
@@ -43,6 +46,12 @@ export const ProductDetailsPage: React.FC = () => {
       if (id) {
         const response = await catalogService.getProductDetails(Number(id));
         setProduct(response.data);
+        if (response.data.variants && response.data.variants.length > 0) {
+          setSelectedVariant(response.data.variants[0]);
+        }
+
+        const recResponse = await catalogService.getRecommendations(Number(id));
+        setRecommendations(recResponse.data);
       }
     } catch (error) {
       console.error("Failed to fetch product data:", error);
@@ -57,7 +66,7 @@ export const ProductDetailsPage: React.FC = () => {
 
   const handleBuyNow = () => {
     if (product) {
-      for (let i = 0; i < quantity; i++) addItem(product);
+      for (let i = 0; i < quantity; i++) addItem(product, selectedVariant || undefined);
       navigate("/checkout");
     }
   };
@@ -88,13 +97,16 @@ export const ProductDetailsPage: React.FC = () => {
     );
 
   // Financial Calculations
-  const stock = product.stock_quantity;
+  const stock = selectedVariant ? selectedVariant.stock_quantity : product.stock_quantity;
   const isOut = stock <= 0;
   const images = product.images || [];
   const gstRate = (product as any).gst_rate || 18; // Default 18% if not provided
-  const sellingPrice = product.selling_price || 0;
+  const basePrice = product.selling_price || 0;
+  const sellingPrice = selectedVariant?.price_override ?? basePrice;
   const taxablePrice = sellingPrice / (1 + gstRate / 100);
   const gstAmount = sellingPrice - taxablePrice;
+
+  const hasVariants = product.variants && product.variants.length > 0;
 
   return (
     <div className="min-h-screen bg-background pb-24 selection:bg-yellow-500/30">
@@ -179,6 +191,47 @@ export const ProductDetailsPage: React.FC = () => {
                 {product.name}
               </h1>
             </div>
+
+            {/* AMAZON STYLE VARIANT SELECTION BLOCK */}
+            {hasVariants && (
+              <div className="mb-10 space-y-6">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-4">Select Configuration</h3>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {product.variants!.map((variant) => {
+                      const isSelected = selectedVariant?.id === variant.id;
+                      const variantOut = variant.stock_quantity <= 0;
+
+                      const configParts = [];
+                      if (variant.ram) configParts.push(`${variant.ram} RAM`);
+                      if (variant.storage) configParts.push(`${variant.storage} Storage`);
+                      if (variant.color) configParts.push(variant.color);
+                      if (variant.screen_size) configParts.push(`${variant.screen_size}"`);
+                      const label = configParts.length > 0 ? configParts.join(" • ") : variant.sku;
+
+                      return (
+                        <button
+                          key={variant.id}
+                          onClick={() => setSelectedVariant(variant)}
+                          className={`relative p-4 rounded-2xl border-2 transition-all text-left overflow-hidden ${
+                            isSelected
+                              ? 'border-yellow-500 bg-yellow-500/10 scale-[1.02] shadow-xl shadow-yellow-500/10'
+                              : 'border-border hover:border-yellow-500/50 hover:bg-secondary/50'
+                          } ${variantOut ? 'opacity-40 grayscale' : ''}`}
+                        >
+                          <span className={`block text-xs font-bold leading-snug ${isSelected ? 'text-yellow-600 dark:text-yellow-400' : 'text-foreground'}`}>
+                            {label}
+                          </span>
+                          <span className={`block mt-2 font-black ${isSelected ? 'text-yellow-600 dark:text-yellow-400' : 'text-muted-foreground'}`}>
+                            {formatCurrency(variant.price_override ?? basePrice)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* PRICING CARD */}
             <div className="bg-card/50 backdrop-blur-xl border-2 border-border p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden mb-10">
@@ -270,6 +323,22 @@ export const ProductDetailsPage: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* CUSTOMERS ALSO VIEWED SLIDER */}
+        {recommendations.length > 0 && (
+          <div className="mt-24 border-t border-border pt-12">
+            <h3 className="text-2xl font-black uppercase tracking-tighter text-foreground mb-8">
+              Customers Also Viewed
+            </h3>
+            <div className="flex gap-6 overflow-x-auto no-scrollbar pb-8 snap-x snap-mandatory">
+              {recommendations.map((rec) => (
+                <div key={rec.id} className="snap-start shrink-0 w-[280px]">
+                  <ProductCard product={rec} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
