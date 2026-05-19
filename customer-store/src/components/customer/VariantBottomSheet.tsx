@@ -9,37 +9,36 @@ interface VariantBottomSheetProps {
   onClose: () => void;
 }
 
-const SIZES = ['S', 'M', 'L', 'XL'];
-const CONFIGS = [
-  { id: 'standard', name: 'Standard Pack', priceIncrement: 0 },
-  { id: 'premium', name: 'Premium Pack', priceIncrement: 150 },
-  { id: 'bulk', name: 'Bulk Case', priceIncrement: 800 },
-];
-
 export const VariantBottomSheet: React.FC<VariantBottomSheetProps> = ({ product, isOpen, onClose }) => {
   const [isAnimating, setIsAnimating] = useState(false);
-  const [selectedSize, setSelectedSize] = useState<string>('M');
-  const [selectedConfig, setSelectedConfig] = useState<string>('standard');
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
     if (isOpen) {
       setIsAnimating(true);
+      if (product?.variants && product.variants.length > 0) {
+        setSelectedVariantId(product.variants[0].id);
+      } else {
+        setSelectedVariantId(null);
+      }
     } else {
       const timer = setTimeout(() => setIsAnimating(false), 300); // match transition duration
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, product]);
 
   if (!isOpen && !isAnimating) return null;
 
-  const currentConfig = CONFIGS.find(c => c.id === selectedConfig);
+  const hasVariants = product?.variants && product.variants.length > 0;
+  const selectedVariant = hasVariants ? product.variants!.find(v => v.id === selectedVariantId) : undefined;
+
   const basePrice = product ? product.selling_price : 0;
-  const finalPrice = basePrice + (currentConfig?.priceIncrement || 0);
+  const finalPrice = selectedVariant?.price_override ?? basePrice;
 
   const handleAddToCart = () => {
     if (product) {
-      addItem(product);
+      addItem(product, selectedVariant);
       onClose();
     }
   };
@@ -71,57 +70,58 @@ export const VariantBottomSheet: React.FC<VariantBottomSheetProps> = ({ product,
           </div>
 
           <div className="space-y-6">
-            {/* Size Selection */}
-            <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-3">Select Size</label>
-              <div className="flex gap-3">
-                {SIZES.map(size => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-all ${
-                      selectedSize === size
-                        ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
+            {!hasVariants ? (
+              <div className="py-4 text-gray-500 text-sm text-center">
+                Standard configuration
               </div>
-            </div>
+            ) : (
+              <div>
+                <label className="text-sm font-semibold text-gray-700 block mb-3">Select Variant</label>
+                <div className="space-y-3">
+                  {product.variants!.map(variant => {
+                    const isSelected = selectedVariantId === variant.id;
+                    const variantOut = variant.stock_quantity <= 0;
 
-            {/* Configuration Selection */}
-            <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-3">Configuration</label>
-              <div className="space-y-3">
-                {CONFIGS.map(config => (
-                  <button
-                    key={config.id}
-                    onClick={() => setSelectedConfig(config.id)}
-                    className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                      selectedConfig === config.id
-                        ? 'border-blue-600 bg-blue-50/50 shadow-sm'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <span className={`text-sm font-medium ${selectedConfig === config.id ? 'text-blue-900' : 'text-gray-700'}`}>
-                      {config.name}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      {config.priceIncrement > 0 && (
-                        <span className="text-xs text-gray-500">+₹{config.priceIncrement}</span>
-                      )}
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border ${
-                        selectedConfig === config.id ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
-                      }`}>
-                        {selectedConfig === config.id && <Check size={12} className="text-white" />}
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    const configParts = [];
+                    if (variant.ram) configParts.push(`${variant.ram} RAM`);
+                    if (variant.storage) configParts.push(`${variant.storage} Storage`);
+                    if (variant.color) configParts.push(variant.color);
+                    if (variant.screen_size) configParts.push(`${variant.screen_size}"`);
+                    const label = configParts.length > 0 ? configParts.join(" • ") : variant.sku;
+
+                    return (
+                      <button
+                        key={variant.id}
+                        disabled={variantOut}
+                        onClick={() => setSelectedVariantId(variant.id)}
+                        className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-50/50 shadow-sm'
+                            : 'border-gray-200 hover:border-gray-300'
+                        } ${variantOut ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''}`}
+                      >
+                        <div className="flex flex-col items-start">
+                          <span className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-700'} ${variantOut ? 'line-through text-gray-400' : ''}`}>
+                            {label}
+                          </span>
+                          {variantOut && <span className="text-[10px] text-red-500 font-bold mt-1">OUT OF STOCK</span>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-gray-600'}`}>
+                            ₹{(variant.price_override ?? basePrice).toFixed(2)}
+                          </span>
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center border ${
+                            isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                          }`}>
+                            {isSelected && <Check size={12} className="text-white" />}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Sticky Bottom CTA */}

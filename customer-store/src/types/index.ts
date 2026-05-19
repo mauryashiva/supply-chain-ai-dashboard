@@ -7,6 +7,19 @@ export interface MediaItem {
   media_type: "image" | "video";
 }
 
+export interface ProductVariant {
+  id: number;
+  product_id: number;
+  sku: string;
+  ram?: string;
+  storage?: string;
+  color?: string;
+  screen_size?: string;
+  stock_quantity: number;
+  price_override?: number;
+  cost_price?: number;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -16,6 +29,7 @@ export interface Product {
   stock_quantity: number;
   category?: string;
   images?: MediaItem[];
+  variants?: ProductVariant[];
   status?: string;
 }
 

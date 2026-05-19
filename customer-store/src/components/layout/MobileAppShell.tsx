@@ -1,18 +1,15 @@
 import React from 'react';
-import { Search, Home, LayoutGrid, Sparkles, ShoppingCart, User, ArrowLeft, Bell } from 'lucide-react';
+import { Search, Home, LayoutGrid, Sparkles, User, ArrowLeft, Bell } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useCartStore } from '../../store/useCartStore';
+import { CartDrawer } from '../common/CartDrawer';
 
 interface MobileAppShellProps {
   children: React.ReactNode;
 }
 
 export const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
-  const items = useCartStore((state) => state.items);
   const location = useLocation();
   const navigate = useNavigate();
-
-  const totalCartItems = items.reduce((total, item) => total + item.quantity, 0);
 
   const getDockIconColor = (path: string) => {
     return location.pathname === path ? 'text-blue-600' : 'text-gray-400';
@@ -72,17 +69,12 @@ export const MobileAppShell: React.FC<MobileAppShellProps> = ({ children }) => {
               <span className="text-[10px] font-medium">Insights</span>
             </button>
 
-            <button onClick={() => navigate('/cart')} className={`flex flex-col items-center justify-center w-full h-full gap-1 relative ${getDockIconColor('/cart')}`}>
-              <div className="relative">
-                <ShoppingCart size={22} className={location.pathname === '/cart' ? 'fill-blue-50' : ''} />
-                {totalCartItems > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                    {totalCartItems}
-                  </span>
-                )}
+            <div className="flex flex-col items-center justify-center w-full h-full gap-1 relative">
+              <div className="relative z-50">
+                <CartDrawer />
               </div>
-              <span className="text-[10px] font-medium">Cart</span>
-            </button>
+              <span className="text-[10px] font-medium -mt-1 text-gray-400">Cart</span>
+            </div>
 
             <button onClick={() => navigate('/profile')} className={`flex flex-col items-center justify-center w-full h-full gap-1 ${getDockIconColor('/profile')}`}>
               <User size={22} className={location.pathname === '/profile' ? 'fill-blue-50' : ''} />

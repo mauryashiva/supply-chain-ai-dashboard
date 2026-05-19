@@ -1,18 +1,20 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Product } from "@/types";
+import type { Product, ProductVariant } from "@/types";
 
 interface CartItem extends Product {
   quantity: number;
+  selectedVariant?: ProductVariant; // Support for selected variant
+  cartItemId: string; // Unique ID composed of product_id + variant_id
 }
 
 interface CartState {
   items: CartItem[];
-  addItem: (product: Product) => void;
-  syncPrices: (latestProducts: Product[]) => void; // New: Action to sync data
-  removeItem: (productId: number) => void;
-  deleteProduct: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  addItem: (product: Product, selectedVariant?: ProductVariant) => void;
+  syncPrices: (latestProducts: Product[]) => void;
+  removeItem: (cartItemId: string) => void;
+  deleteProduct: (cartItemId: string) => void;
+  updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
   getTotalPrice: () => number;
 }
@@ -28,20 +30,24 @@ export const useCartStore = create<CartState>()(
         if (currentItems.length === 0) return;
 
         const updatedItems = currentItems.map((item) => {
-          // Find the matching product in the fresh data array
           const latestProduct = latestProducts.find((p) => p.id === item.id);
 
           if (latestProduct) {
+            // Also sync the selected variant if one exists
+            let latestVariant = item.selectedVariant;
+            if (item.selectedVariant && latestProduct.variants) {
+              latestVariant = latestProduct.variants.find(v => v.id === item.selectedVariant?.id) || item.selectedVariant;
+            }
+
             return {
               ...item,
-              // Update all dynamic fields while keeping the cart quantity
               name: latestProduct.name,
-              selling_price: latestProduct.selling_price,
-              stock_quantity: latestProduct.stock_quantity,
+              selling_price: latestVariant?.price_override ?? latestProduct.selling_price,
+              stock_quantity: latestVariant ? latestVariant.stock_quantity : latestProduct.stock_quantity,
               images: latestProduct.images,
-              sku: latestProduct.sku,
-              // Add other fields like gst_rate if they exist in your type
+              sku: latestVariant?.sku ?? latestProduct.sku,
               gst_rate: (latestProduct as any).gst_rate || 0,
+              selectedVariant: latestVariant,
             };
           }
           return item;
@@ -50,64 +56,75 @@ export const useCartStore = create<CartState>()(
         set({ items: updatedItems });
       },
 
-      addItem: (product) => {
+      addItem: (product, selectedVariant) => {
         const items = get().items;
-        const existingItem = items.find((item) => item.id === product.id);
+        const cartItemId = selectedVariant ? `${product.id}-${selectedVariant.id}` : `${product.id}-default`;
+        const existingItem = items.find((item) => item.cartItemId === cartItemId);
 
-        if (product.stock_quantity <= 0) return;
+        const availableStock = selectedVariant ? selectedVariant.stock_quantity : product.stock_quantity;
+        const activePrice = selectedVariant?.price_override ?? product.selling_price;
+
+        if (availableStock <= 0) return;
 
         if (existingItem) {
-          if (existingItem.quantity >= product.stock_quantity) return;
+          if (existingItem.quantity >= availableStock) return;
           set({
             items: items.map((item) =>
-              item.id === product.id
+              item.cartItemId === cartItemId
                 ? { ...item, quantity: item.quantity + 1 }
                 : item,
             ),
           });
         } else {
-          set({ items: [...items, { ...product, quantity: 1 }] });
+          set({ items: [...items, {
+            ...product,
+            quantity: 1,
+            cartItemId,
+            selectedVariant,
+            selling_price: activePrice, // Snapshot price for UI
+            stock_quantity: availableStock
+          }] });
         }
       },
 
-      removeItem: (productId) => {
+      removeItem: (cartItemId) => {
         const items = get().items;
-        const existingItem = items.find((item) => item.id === productId);
+        const existingItem = items.find((item) => item.cartItemId === cartItemId);
         if (!existingItem) return;
 
         if (existingItem.quantity > 1) {
           set({
             items: items.map((item) =>
-              item.id === productId
+              item.cartItemId === cartItemId
                 ? { ...item, quantity: item.quantity - 1 }
                 : item,
             ),
           });
         } else {
-          set({ items: items.filter((item) => item.id !== productId) });
+          set({ items: items.filter((item) => item.cartItemId !== cartItemId) });
         }
       },
 
-      deleteProduct: (productId) => {
+      deleteProduct: (cartItemId) => {
         set({
-          items: get().items.filter((item) => item.id !== productId),
+          items: get().items.filter((item) => item.cartItemId !== cartItemId),
         });
       },
 
-      updateQuantity: (productId, quantity) => {
+      updateQuantity: (cartItemId, quantity) => {
         const items = get().items;
-        const existingItem = items.find((item) => item.id === productId);
+        const existingItem = items.find((item) => item.cartItemId === cartItemId);
         if (!existingItem) return;
 
         if (quantity <= 0) {
-          set({ items: items.filter((item) => item.id !== productId) });
+          set({ items: items.filter((item) => item.cartItemId !== cartItemId) });
           return;
         }
 
         const safeQty = Math.min(quantity, existingItem.stock_quantity);
         set({
           items: items.map((item) =>
-            item.id === productId ? { ...item, quantity: safeQty } : item,
+            item.cartItemId === cartItemId ? { ...item, quantity: safeQty } : item,
           ),
         });
       },
