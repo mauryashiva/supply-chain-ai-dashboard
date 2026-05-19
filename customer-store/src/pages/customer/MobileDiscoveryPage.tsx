@@ -6,6 +6,7 @@ import { MobileAiAssistant } from '../../components/customer/MobileAiAssistant';
 import { VariantBottomSheet } from '../../components/customer/VariantBottomSheet';
 import type { Product } from '../../types';
 import { Timer, Zap, ChevronRight, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 // Mock Data for non-dynamic elements
 const HERO_BANNERS = [
@@ -31,6 +32,7 @@ export const MobileDiscoveryPage: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState({ hours: 12, minutes: 45, seconds: 30 });
 
   const syncPrices = useCartStore((state) => state.syncPrices);
+  const navigate = useNavigate();
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -150,7 +152,7 @@ export const MobileDiscoveryPage: React.FC = () => {
             </div>
           ) : (
             products.map((product) => (
-            <div key={product.id} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 relative group overflow-hidden">
+            <div key={product.id} onClick={() => navigate(`/product/${product.id}`)} className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 relative group overflow-hidden cursor-pointer">
               {/* Automated Inventory Badges */}
               {product.stock_quantity < 10 && (
                 <div className="absolute top-2 left-2 z-10 bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
